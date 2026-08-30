@@ -460,9 +460,19 @@ recommendation UI.
 
 ---
 
-## Appendix A — Decision log
+## Appendix A — Architecture Decision Record
 
 Recorded so a future reader knows what was chosen and why, and which choices reversed.
+
+**Entries from ADR-24 on live in [`arch/`](arch/), one file per decision.** `ls arch/` is the
+index; each file carries the context, the consequences and the alternatives that lost.
+
+Entries 1–23 predate that layout and stay as the table below — the rationales are the ones given
+at the time, and expanding them after the fact would invent the parts nobody wrote down. A
+decision earns an entry when either holds: it makes a sentence in this spec wrong or incomplete,
+or it chose between options whose loser would have produced a different schema, file layout,
+dependency, or wire format. Entries are append-only — a reversal is a new file that supersedes
+the old one, and the old one is never deleted.
 
 | # | Decision | Choice | Rationale |
 |---|---|---|---|

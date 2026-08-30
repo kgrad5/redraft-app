@@ -32,5 +32,10 @@ class Settings(BaseSettings):
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        """SQLAlchemy resolves a bare postgresql:// to psycopg2; name the v3 driver explicitly."""
+        return self.database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
 
 settings = Settings()
