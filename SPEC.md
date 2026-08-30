@@ -123,7 +123,7 @@ These are load-bearing. Each was confirmed on 2026-08-30.
 
 | Layer | Choice | Why |
 |---|---|---|
-| Engine | Python 3.12, FastAPI, uvicorn, NumPy | Vectorized order-sampling; best fantasy-data ecosystem |
+| Engine | Python 3.14, FastAPI, uvicorn, NumPy | Vectorized order-sampling; best fantasy-data ecosystem |
 | Storage | Postgres in Docker (`docker compose up` for the DB only) | Dated snapshots; app runs natively in a venv for fast iteration and easy mid-draft restart |
 | UI | Browser page served by the engine, second screen | Visual density the draft board needs |
 | Pick tap | Tampermonkey userscript | No store review, instant reload — critical on a short runway |

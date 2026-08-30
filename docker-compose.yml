@@ -1,0 +1,24 @@
+# Postgres only. The app runs natively in a venv (SPEC §3) so it can be
+# restarted in seconds mid-draft without a container rebuild.
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-redraft}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-redraft}
+      POSTGRES_DB: ${POSTGRES_DB:-redraft}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    # PG18+ stores data in major-version subdirs and rejects a mount
+    # at .../data outright. Mount one level up. See docker-library/postgres#1259
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-redraft} -d ${POSTGRES_DB:-redraft}"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  pgdata:
