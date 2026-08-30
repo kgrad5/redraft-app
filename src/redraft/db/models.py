@@ -93,7 +93,11 @@ class Adp(Base):
 class LeagueConfig(Base):
     __tablename__ = "league_config"
 
-    season: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # autoincrement=False: season is a natural key (2026). SQLAlchemy makes a lone
+    # integer primary key SERIAL, which would let an insert that omits the season
+    # silently store 1 — and SPEC §5 is explicit that a wrong value here has no
+    # visible symptom.
+    season: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     scoring_json: Mapped[dict] = mapped_column(JSONB)
     roster_slots_json: Mapped[dict] = mapped_column(JSONB)
     position_caps_json: Mapped[dict] = mapped_column(JSONB)
@@ -121,8 +125,11 @@ class DraftEvent(Base):
     player_id: Mapped[int | None] = mapped_column(BigInteger, _player_fk())
     team_id: Mapped[str] = mapped_column(Text)
     source: Mapped[str] = mapped_column(Text)
+    # clock_timestamp(), not now(): now() is transaction start, so a handler that
+    # resolves a player before inserting — or batches a poll's picks — would stamp
+    # every pick with the same earlier instant, defeating §4.4's latency analysis.
     received_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        DateTime(timezone=True), server_default=func.clock_timestamp()
     )
 
 

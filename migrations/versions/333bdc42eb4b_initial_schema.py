@@ -45,7 +45,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.create_table(
         "league_config",
-        sa.Column("season", sa.Integer(), nullable=False),
+        sa.Column("season", sa.Integer(), autoincrement=False, nullable=False),
         sa.Column("scoring_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("roster_slots_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("position_caps_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
@@ -103,7 +103,7 @@ def upgrade() -> None:
         sa.Column(
             "received_at",
             sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
+            server_default=sa.text("clock_timestamp()"),
             nullable=False,
         ),
         sa.CheckConstraint("source IN ('tap', 'manual')", name="ck_draft_events_source"),

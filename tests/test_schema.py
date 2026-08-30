@@ -10,7 +10,9 @@ from pathlib import Path
 import pytest
 import sqlalchemy as sa
 from alembic import command
+from alembic.autogenerate import compare_metadata
 from alembic.config import Config
+from alembic.migration import MigrationContext
 
 from redraft.db.models import Base
 from redraft.settings import settings
@@ -46,11 +48,18 @@ def database_url():
         .set(database=name)
         .render_as_string(hide_password=False)
     )
+    # Restore rather than delete: a developer may have this exported at a scratch
+    # database, and deleting it would drop later in-process migrations through to
+    # the configured one — the database this module must never touch.
+    previous = os.environ.get("REDRAFT_DATABASE_URL")
     os.environ["REDRAFT_DATABASE_URL"] = url
     try:
         yield url
     finally:
-        del os.environ["REDRAFT_DATABASE_URL"]
+        if previous is None:
+            del os.environ["REDRAFT_DATABASE_URL"]
+        else:
+            os.environ["REDRAFT_DATABASE_URL"] = previous
         with admin.connect() as conn:
             conn.execute(sa.text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         admin.dispose()
@@ -89,6 +98,13 @@ def test_columns_match_the_models(migrated, engine):
     for name, table in Base.metadata.tables.items():
         actual = {column["name"] for column in inspector.get_columns(name)}
         assert actual == set(table.columns.keys()), name
+
+
+def test_migration_matches_the_models(migrated, engine):
+    """Names alone would let types, nullability and constraints drift apart silently."""
+    with engine.connect() as conn:
+        diff = compare_metadata(MigrationContext.configure(conn), Base.metadata)
+    assert diff == [], diff
 
 
 def test_draft_events_rejects_update_delete_and_truncate(migrated, engine):
