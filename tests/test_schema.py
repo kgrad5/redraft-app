@@ -135,6 +135,47 @@ def test_draft_events_rejects_update_delete_and_truncate(migrated, engine):
         assert conn.execute(sa.text("SELECT count(*) FROM draft_events")).scalar_one() == 1
 
 
+def test_draft_events_accepts_a_null_player_id(migrated, engine):
+    """ADR-28. Without this, tidying the column to NOT NULL breaks nothing here and
+    fails a live pick instead, which is the failure SPEC §8.3 forbids."""
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO draft_events (draft_id, pick_no, player_id, team_id, source) "
+                "VALUES ('unresolved', 99, NULL, 'team-1', 'tap')"
+            )
+        )
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                sa.text("SELECT count(*) FROM draft_events WHERE player_id IS NULL")
+            ).scalar_one()
+            == 1
+        )
+
+
+@pytest.mark.parametrize(
+    ("statement", "constraint"),
+    [
+        (
+            "INSERT INTO snapshots (source, fetched_at, raw_payload) VALUES ('espn', now(), '{}')",
+            "ck_snapshots_source",
+        ),
+        (
+            (
+                "INSERT INTO draft_events (draft_id, pick_no, team_id, source) "
+                "VALUES ('d', 1, 't', 'auto')"
+            ),
+            "ck_draft_events_source",
+        ),
+    ],
+)
+def test_source_columns_reject_unknown_values(migrated, engine, statement, constraint):
+    """ADR-31, and the tap|manual set the issue names."""
+    with pytest.raises(sa.exc.IntegrityError, match=constraint), engine.begin() as conn:
+        conn.execute(sa.text(statement))
+
+
 def test_downgrade_then_upgrade(migrated, alembic_config, engine):
     command.downgrade(alembic_config, "base")
     assert not (EXPECTED_TABLES & set(sa.inspect(engine).get_table_names()))
