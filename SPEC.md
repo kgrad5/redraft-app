@@ -488,6 +488,7 @@ Recorded so a future reader knows what was chosen and why, and which choices rev
 | 20 | Latency | < 2s | Requires background precompute, not recompute-on-demand |
 | 21 | Validation | Local simulator + Yahoo mocks | Different failure modes; the availability model is the only honestly-validatable component |
 | 22 | Cut order | Automation before intelligence | A great engine with typed picks beats a weak engine with perfect sync |
+| 23 | Engine runtime | **Python 3.14** *(reversed from 3.12)* | Nothing in the dependency graph requires 3.12 — all ship `cp314` wheels or are pure-Python. `nfl-data-py`, the one library that could have justified an older interpreter, pins `pandas<2.0`, whose last release tops out at `cp311`, so it never ran on 3.12 either |
 
 ## Appendix B — Open items to verify
 
