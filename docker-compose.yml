@@ -1,0 +1,31 @@
+# Postgres only. The app runs natively in a venv (SPEC §3) so it can be
+# restarted in seconds mid-draft without a container rebuild.
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-redraft}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-redraft}
+      POSTGRES_DB: ${POSTGRES_DB:-redraft}
+    ports:
+      # Loopback only. SPEC §1: personal tool, one league, owner's machine.
+      # Without the host_ip this binds 0.0.0.0 and exposes the database, with
+      # its committed default password, to every host on the local network.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    # PG18+ stores data in major-version subdirs and rejects a mount
+    # at .../data outright. Mount one level up. See docker-library/postgres#1259
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      # -h forces TCP. Over the default Unix socket this also matches the
+      # entrypoint's temporary init server (listen_addresses=''), so --wait
+      # could return before the published port accepts connections.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-redraft} -d ${POSTGRES_DB:-redraft}"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
+
+volumes:
+  pgdata:
