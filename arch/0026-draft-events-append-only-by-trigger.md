@@ -1,6 +1,6 @@
 # ADR-26 — `draft_events` is append-only by trigger, not by permission
 
-**Status:** Accepted · 2026-08-30 · issue #2
+**Status:** Superseded by ADR-33 · 2026-08-30 · issue #2
 
 **Context**
 §4.4 states that `draft_events` is append-only but not how. The guarantee has to hold against

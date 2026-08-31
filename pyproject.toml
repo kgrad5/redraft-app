@@ -21,6 +21,7 @@ dependencies = [
 dev = [
     "pytest",
     "ruff",
+    "httpx",  # fastapi.testclient.TestClient transport
 ]
 
 [tool.hatch.build.targets.wheel]

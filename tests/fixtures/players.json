@@ -1,0 +1,1466 @@
+[
+  {
+    "full_name": "Aaron Abbott QB01",
+    "team": "ARI",
+    "position": "QB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Blake Ingraham QB02",
+    "team": "ATL",
+    "position": "QB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Carson Quimby QB03",
+    "team": "BAL",
+    "position": "QB",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Dante Ashford QB04",
+    "team": "BUF",
+    "position": "QB",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Elias Abbott QB05",
+    "team": "CAR",
+    "position": "QB",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Foster Ingraham QB06",
+    "team": "CHI",
+    "position": "QB",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Gavin Quimby QB07",
+    "team": "CIN",
+    "position": "QB",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Hollis Ashford QB08",
+    "team": "CLE",
+    "position": "QB",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Isaiah Abbott QB09",
+    "team": "DAL",
+    "position": "QB",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Jonah Ingraham QB10",
+    "team": "DEN",
+    "position": "QB",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Kellen Quimby QB11",
+    "team": "DET",
+    "position": "QB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Landon Ashford QB12",
+    "team": "GB",
+    "position": "QB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Micah Abbott QB13",
+    "team": "HOU",
+    "position": "QB",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Nolan Ingraham QB14",
+    "team": "IND",
+    "position": "QB",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Owen Quimby QB15",
+    "team": "JAX",
+    "position": "QB",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Pierce Ashford QB16",
+    "team": "KC",
+    "position": "QB",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Quentin Abbott QB17",
+    "team": "LAC",
+    "position": "QB",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Rowan Ingraham QB18",
+    "team": "LAR",
+    "position": "QB",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Silas Quimby QB19",
+    "team": "LV",
+    "position": "QB",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Tobias Ashford QB20",
+    "team": "MIA",
+    "position": "QB",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Uriah Abbott QB21",
+    "team": "MIN",
+    "position": "QB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Vance Ingraham QB22",
+    "team": "NE",
+    "position": "QB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Weston Quimby QB23",
+    "team": "NO",
+    "position": "QB",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Xavier Ashford QB24",
+    "team": "NYG",
+    "position": "QB",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Yusuf Abbott QB25",
+    "team": "NYJ",
+    "position": "QB",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Zane Ingraham QB26",
+    "team": "PHI",
+    "position": "QB",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Amari Quimby QB27",
+    "team": "PIT",
+    "position": "QB",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Brennan Ashford QB28",
+    "team": "SEA",
+    "position": "QB",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Cedric Abbott QB29",
+    "team": "SF",
+    "position": "QB",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Darnell Ingraham QB30",
+    "team": "TB",
+    "position": "QB",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Emmett Quimby QB31",
+    "team": "TEN",
+    "position": "QB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Finnian Ashford QB32",
+    "team": "WAS",
+    "position": "QB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Aaron Abbott RB01",
+    "team": "ARI",
+    "position": "RB",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Blake Ingraham RB02",
+    "team": "ATL",
+    "position": "RB",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Carson Quimby RB03",
+    "team": "BAL",
+    "position": "RB",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Dante Ashford RB04",
+    "team": "BUF",
+    "position": "RB",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Elias Abbott RB05",
+    "team": "CAR",
+    "position": "RB",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Foster Ingraham RB06",
+    "team": "CHI",
+    "position": "RB",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Gavin Quimby RB07",
+    "team": "CIN",
+    "position": "RB",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Hollis Ashford RB08",
+    "team": "CLE",
+    "position": "RB",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Isaiah Abbott RB09",
+    "team": "DAL",
+    "position": "RB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Jonah Ingraham RB10",
+    "team": "DEN",
+    "position": "RB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Kellen Quimby RB11",
+    "team": "DET",
+    "position": "RB",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Landon Ashford RB12",
+    "team": "GB",
+    "position": "RB",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Micah Abbott RB13",
+    "team": "HOU",
+    "position": "RB",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Nolan Ingraham RB14",
+    "team": "IND",
+    "position": "RB",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Owen Quimby RB15",
+    "team": "JAX",
+    "position": "RB",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Pierce Ashford RB16",
+    "team": "KC",
+    "position": "RB",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Quentin Abbott RB17",
+    "team": "LAC",
+    "position": "RB",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Rowan Ingraham RB18",
+    "team": "LAR",
+    "position": "RB",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Silas Quimby RB19",
+    "team": "LV",
+    "position": "RB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Tobias Ashford RB20",
+    "team": "MIA",
+    "position": "RB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Uriah Abbott RB21",
+    "team": "MIN",
+    "position": "RB",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Vance Ingraham RB22",
+    "team": "NE",
+    "position": "RB",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Weston Quimby RB23",
+    "team": "NO",
+    "position": "RB",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Xavier Ashford RB24",
+    "team": "NYG",
+    "position": "RB",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Yusuf Abbott RB25",
+    "team": "NYJ",
+    "position": "RB",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Zane Ingraham RB26",
+    "team": "PHI",
+    "position": "RB",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Amari Quimby RB27",
+    "team": "PIT",
+    "position": "RB",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Brennan Ashford RB28",
+    "team": "SEA",
+    "position": "RB",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Cedric Abbott RB29",
+    "team": "SF",
+    "position": "RB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Darnell Ingraham RB30",
+    "team": "TB",
+    "position": "RB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Emmett Quimby RB31",
+    "team": "TEN",
+    "position": "RB",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Finnian Ashford RB32",
+    "team": "WAS",
+    "position": "RB",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Aaron Abbott RB33",
+    "team": "ARI",
+    "position": "RB",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Blake Ingraham RB34",
+    "team": "ATL",
+    "position": "RB",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Carson Quimby RB35",
+    "team": "BAL",
+    "position": "RB",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Dante Ashford RB36",
+    "team": "BUF",
+    "position": "RB",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Elias Abbott RB37",
+    "team": "CAR",
+    "position": "RB",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Foster Ingraham RB38",
+    "team": "CHI",
+    "position": "RB",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Gavin Quimby RB39",
+    "team": "CIN",
+    "position": "RB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Hollis Ashford RB40",
+    "team": "CLE",
+    "position": "RB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Isaiah Abbott RB41",
+    "team": "DAL",
+    "position": "RB",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Jonah Ingraham RB42",
+    "team": "DEN",
+    "position": "RB",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Kellen Quimby RB43",
+    "team": "DET",
+    "position": "RB",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Landon Ashford RB44",
+    "team": "GB",
+    "position": "RB",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Micah Abbott RB45",
+    "team": "HOU",
+    "position": "RB",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Nolan Ingraham RB46",
+    "team": "IND",
+    "position": "RB",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Owen Quimby RB47",
+    "team": "JAX",
+    "position": "RB",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Pierce Ashford RB48",
+    "team": "KC",
+    "position": "RB",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Quentin Abbott RB49",
+    "team": "LAC",
+    "position": "RB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Rowan Ingraham RB50",
+    "team": "LAR",
+    "position": "RB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Silas Quimby RB51",
+    "team": "LV",
+    "position": "RB",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Tobias Ashford RB52",
+    "team": "MIA",
+    "position": "RB",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Uriah Abbott RB53",
+    "team": "MIN",
+    "position": "RB",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Vance Ingraham RB54",
+    "team": "NE",
+    "position": "RB",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Weston Quimby RB55",
+    "team": "NO",
+    "position": "RB",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Xavier Ashford RB56",
+    "team": "NYG",
+    "position": "RB",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Yusuf Abbott RB57",
+    "team": "NYJ",
+    "position": "RB",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Zane Ingraham RB58",
+    "team": "PHI",
+    "position": "RB",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Amari Quimby RB59",
+    "team": "PIT",
+    "position": "RB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Brennan Ashford RB60",
+    "team": "SEA",
+    "position": "RB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Cedric Abbott RB61",
+    "team": "SF",
+    "position": "RB",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Darnell Ingraham RB62",
+    "team": "TB",
+    "position": "RB",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Emmett Quimby RB63",
+    "team": "TEN",
+    "position": "RB",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Finnian Ashford RB64",
+    "team": "WAS",
+    "position": "RB",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Aaron Abbott RB65",
+    "team": "ARI",
+    "position": "RB",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Blake Ingraham RB66",
+    "team": "ATL",
+    "position": "RB",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Carson Quimby RB67",
+    "team": "BAL",
+    "position": "RB",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Dante Ashford RB68",
+    "team": "BUF",
+    "position": "RB",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Elias Abbott RB69",
+    "team": "CAR",
+    "position": "RB",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Foster Ingraham RB70",
+    "team": "CHI",
+    "position": "RB",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Gavin Kirkland WR01",
+    "team": "CIN",
+    "position": "WR",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Hollis Stapleton WR02",
+    "team": "CLE",
+    "position": "WR",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Isaiah Corrigan WR03",
+    "team": "DAL",
+    "position": "WR",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Jonah Calloway WR04",
+    "team": "DEN",
+    "position": "WR",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Kellen Kirkland WR05",
+    "team": "DET",
+    "position": "WR",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Landon Stapleton WR06",
+    "team": "GB",
+    "position": "WR",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Micah Corrigan WR07",
+    "team": "HOU",
+    "position": "WR",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Nolan Calloway WR08",
+    "team": "IND",
+    "position": "WR",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Owen Kirkland WR09",
+    "team": "JAX",
+    "position": "WR",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Pierce Stapleton WR10",
+    "team": "KC",
+    "position": "WR",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Quentin Corrigan WR11",
+    "team": "LAC",
+    "position": "WR",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Rowan Calloway WR12",
+    "team": "LAR",
+    "position": "WR",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Silas Kirkland WR13",
+    "team": "LV",
+    "position": "WR",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Tobias Stapleton WR14",
+    "team": "MIA",
+    "position": "WR",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Uriah Corrigan WR15",
+    "team": "MIN",
+    "position": "WR",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Vance Calloway WR16",
+    "team": "NE",
+    "position": "WR",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Weston Kirkland WR17",
+    "team": "NO",
+    "position": "WR",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Xavier Stapleton WR18",
+    "team": "NYG",
+    "position": "WR",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Yusuf Corrigan WR19",
+    "team": "NYJ",
+    "position": "WR",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Zane Calloway WR20",
+    "team": "PHI",
+    "position": "WR",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Amari Kirkland WR21",
+    "team": "PIT",
+    "position": "WR",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Brennan Stapleton WR22",
+    "team": "SEA",
+    "position": "WR",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Cedric Corrigan WR23",
+    "team": "SF",
+    "position": "WR",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Darnell Calloway WR24",
+    "team": "TB",
+    "position": "WR",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Emmett Kirkland WR25",
+    "team": "TEN",
+    "position": "WR",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Finnian Stapleton WR26",
+    "team": "WAS",
+    "position": "WR",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Aaron Corrigan WR27",
+    "team": "ARI",
+    "position": "WR",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Blake Calloway WR28",
+    "team": "ATL",
+    "position": "WR",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Carson Kirkland WR29",
+    "team": "BAL",
+    "position": "WR",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Dante Stapleton WR30",
+    "team": "BUF",
+    "position": "WR",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Elias Corrigan WR31",
+    "team": "CAR",
+    "position": "WR",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Foster Calloway WR32",
+    "team": "CHI",
+    "position": "WR",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Gavin Kirkland WR33",
+    "team": "CIN",
+    "position": "WR",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Hollis Stapleton WR34",
+    "team": "CLE",
+    "position": "WR",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Isaiah Corrigan WR35",
+    "team": "DAL",
+    "position": "WR",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Jonah Calloway WR36",
+    "team": "DEN",
+    "position": "WR",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Kellen Kirkland WR37",
+    "team": "DET",
+    "position": "WR",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Landon Stapleton WR38",
+    "team": "GB",
+    "position": "WR",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Micah Corrigan WR39",
+    "team": "HOU",
+    "position": "WR",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Nolan Calloway WR40",
+    "team": "IND",
+    "position": "WR",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Owen Kirkland WR41",
+    "team": "JAX",
+    "position": "WR",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Pierce Stapleton WR42",
+    "team": "KC",
+    "position": "WR",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Quentin Corrigan WR43",
+    "team": "LAC",
+    "position": "WR",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Rowan Calloway WR44",
+    "team": "LAR",
+    "position": "WR",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Silas Kirkland WR45",
+    "team": "LV",
+    "position": "WR",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Tobias Stapleton WR46",
+    "team": "MIA",
+    "position": "WR",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Uriah Corrigan WR47",
+    "team": "MIN",
+    "position": "WR",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Vance Calloway WR48",
+    "team": "NE",
+    "position": "WR",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Weston Kirkland WR49",
+    "team": "NO",
+    "position": "WR",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Xavier Stapleton WR50",
+    "team": "NYG",
+    "position": "WR",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Yusuf Corrigan WR51",
+    "team": "NYJ",
+    "position": "WR",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Zane Calloway WR52",
+    "team": "PHI",
+    "position": "WR",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Amari Kirkland WR53",
+    "team": "PIT",
+    "position": "WR",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Brennan Stapleton WR54",
+    "team": "SEA",
+    "position": "WR",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Cedric Corrigan WR55",
+    "team": "SF",
+    "position": "WR",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Darnell Calloway WR56",
+    "team": "TB",
+    "position": "WR",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Emmett Kirkland WR57",
+    "team": "TEN",
+    "position": "WR",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Finnian Stapleton WR58",
+    "team": "WAS",
+    "position": "WR",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Aaron Corrigan WR59",
+    "team": "ARI",
+    "position": "WR",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Blake Calloway WR60",
+    "team": "ATL",
+    "position": "WR",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Carson Kirkland WR61",
+    "team": "BAL",
+    "position": "WR",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Dante Stapleton WR62",
+    "team": "BUF",
+    "position": "WR",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Elias Corrigan WR63",
+    "team": "CAR",
+    "position": "WR",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Foster Calloway WR64",
+    "team": "CHI",
+    "position": "WR",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Gavin Kirkland WR65",
+    "team": "CIN",
+    "position": "WR",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Hollis Stapleton WR66",
+    "team": "CLE",
+    "position": "WR",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Isaiah Corrigan WR67",
+    "team": "DAL",
+    "position": "WR",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Jonah Calloway WR68",
+    "team": "DEN",
+    "position": "WR",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Kellen Kirkland WR69",
+    "team": "DET",
+    "position": "WR",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Landon Stapleton WR70",
+    "team": "GB",
+    "position": "WR",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Micah Corrigan WR71",
+    "team": "HOU",
+    "position": "WR",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Nolan Calloway WR72",
+    "team": "IND",
+    "position": "WR",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Owen Kirkland WR73",
+    "team": "JAX",
+    "position": "WR",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Pierce Stapleton WR74",
+    "team": "KC",
+    "position": "WR",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Quentin Corrigan WR75",
+    "team": "LAC",
+    "position": "WR",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Rowan Calloway WR76",
+    "team": "LAR",
+    "position": "WR",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Silas Kirkland WR77",
+    "team": "LV",
+    "position": "WR",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Tobias Stapleton WR78",
+    "team": "MIA",
+    "position": "WR",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Uriah Corrigan WR79",
+    "team": "MIN",
+    "position": "WR",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Vance Calloway WR80",
+    "team": "NE",
+    "position": "WR",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Weston Kirkland WR81",
+    "team": "NO",
+    "position": "WR",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Xavier Stapleton WR82",
+    "team": "NYG",
+    "position": "WR",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Yusuf Corrigan WR83",
+    "team": "NYJ",
+    "position": "WR",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Zane Calloway WR84",
+    "team": "PHI",
+    "position": "WR",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Amari Kirkland WR85",
+    "team": "PIT",
+    "position": "WR",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Brennan Stapleton WR86",
+    "team": "SEA",
+    "position": "WR",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Cedric Corrigan WR87",
+    "team": "SF",
+    "position": "WR",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Darnell Calloway WR88",
+    "team": "TB",
+    "position": "WR",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Emmett Kirkland WR89",
+    "team": "TEN",
+    "position": "WR",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Finnian Stapleton WR90",
+    "team": "WAS",
+    "position": "WR",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Aaron Abbott TE01",
+    "team": "ARI",
+    "position": "TE",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Blake Ingraham TE02",
+    "team": "ATL",
+    "position": "TE",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Carson Quimby TE03",
+    "team": "BAL",
+    "position": "TE",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Dante Ashford TE04",
+    "team": "BUF",
+    "position": "TE",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Elias Abbott TE05",
+    "team": "CAR",
+    "position": "TE",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Foster Ingraham TE06",
+    "team": "CHI",
+    "position": "TE",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Gavin Quimby TE07",
+    "team": "CIN",
+    "position": "TE",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Hollis Ashford TE08",
+    "team": "CLE",
+    "position": "TE",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Isaiah Abbott TE09",
+    "team": "DAL",
+    "position": "TE",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Jonah Ingraham TE10",
+    "team": "DEN",
+    "position": "TE",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Kellen Quimby TE11",
+    "team": "DET",
+    "position": "TE",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Landon Ashford TE12",
+    "team": "GB",
+    "position": "TE",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Micah Abbott TE13",
+    "team": "HOU",
+    "position": "TE",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Nolan Ingraham TE14",
+    "team": "IND",
+    "position": "TE",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Owen Quimby TE15",
+    "team": "JAX",
+    "position": "TE",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Pierce Ashford TE16",
+    "team": "KC",
+    "position": "TE",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Quentin Abbott TE17",
+    "team": "LAC",
+    "position": "TE",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Rowan Ingraham TE18",
+    "team": "LAR",
+    "position": "TE",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Silas Quimby TE19",
+    "team": "LV",
+    "position": "TE",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Tobias Ashford TE20",
+    "team": "MIA",
+    "position": "TE",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Uriah Abbott TE21",
+    "team": "MIN",
+    "position": "TE",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Vance Ingraham TE22",
+    "team": "NE",
+    "position": "TE",
+    "bye_week": 8
+  },
+  {
+    "full_name": "Weston Quimby TE23",
+    "team": "NO",
+    "position": "TE",
+    "bye_week": 9
+  },
+  {
+    "full_name": "Xavier Ashford TE24",
+    "team": "NYG",
+    "position": "TE",
+    "bye_week": 10
+  },
+  {
+    "full_name": "Yusuf Abbott TE25",
+    "team": "NYJ",
+    "position": "TE",
+    "bye_week": 11
+  },
+  {
+    "full_name": "Zane Ingraham TE26",
+    "team": "PHI",
+    "position": "TE",
+    "bye_week": 12
+  },
+  {
+    "full_name": "Amari Quimby TE27",
+    "team": "PIT",
+    "position": "TE",
+    "bye_week": 13
+  },
+  {
+    "full_name": "Brennan Ashford TE28",
+    "team": "SEA",
+    "position": "TE",
+    "bye_week": 14
+  },
+  {
+    "full_name": "Cedric Abbott TE29",
+    "team": "SF",
+    "position": "TE",
+    "bye_week": 5
+  },
+  {
+    "full_name": "Darnell Ingraham TE30",
+    "team": "TB",
+    "position": "TE",
+    "bye_week": 6
+  },
+  {
+    "full_name": "Emmett Quimby TE31",
+    "team": "TEN",
+    "position": "TE",
+    "bye_week": 7
+  },
+  {
+    "full_name": "Finnian Ashford TE32",
+    "team": "WAS",
+    "position": "TE",
+    "bye_week": 8
+  },
+  {
+    "full_name": "ARI Defense",
+    "team": "ARI",
+    "position": "DEF",
+    "bye_week": 9
+  },
+  {
+    "full_name": "ATL Defense",
+    "team": "ATL",
+    "position": "DEF",
+    "bye_week": 10
+  },
+  {
+    "full_name": "BAL Defense",
+    "team": "BAL",
+    "position": "DEF",
+    "bye_week": 11
+  },
+  {
+    "full_name": "BUF Defense",
+    "team": "BUF",
+    "position": "DEF",
+    "bye_week": 12
+  },
+  {
+    "full_name": "CAR Defense",
+    "team": "CAR",
+    "position": "DEF",
+    "bye_week": 13
+  },
+  {
+    "full_name": "CHI Defense",
+    "team": "CHI",
+    "position": "DEF",
+    "bye_week": 14
+  },
+  {
+    "full_name": "CIN Defense",
+    "team": "CIN",
+    "position": "DEF",
+    "bye_week": 5
+  },
+  {
+    "full_name": "CLE Defense",
+    "team": "CLE",
+    "position": "DEF",
+    "bye_week": 6
+  },
+  {
+    "full_name": "DAL Defense",
+    "team": "DAL",
+    "position": "DEF",
+    "bye_week": 7
+  },
+  {
+    "full_name": "DEN Defense",
+    "team": "DEN",
+    "position": "DEF",
+    "bye_week": 8
+  },
+  {
+    "full_name": "DET Defense",
+    "team": "DET",
+    "position": "DEF",
+    "bye_week": 9
+  },
+  {
+    "full_name": "GB Defense",
+    "team": "GB",
+    "position": "DEF",
+    "bye_week": 10
+  },
+  {
+    "full_name": "HOU Defense",
+    "team": "HOU",
+    "position": "DEF",
+    "bye_week": 11
+  },
+  {
+    "full_name": "IND Defense",
+    "team": "IND",
+    "position": "DEF",
+    "bye_week": 12
+  },
+  {
+    "full_name": "JAX Defense",
+    "team": "JAX",
+    "position": "DEF",
+    "bye_week": 13
+  },
+  {
+    "full_name": "KC Defense",
+    "team": "KC",
+    "position": "DEF",
+    "bye_week": 14
+  },
+  {
+    "full_name": "LAC Defense",
+    "team": "LAC",
+    "position": "DEF",
+    "bye_week": 5
+  },
+  {
+    "full_name": "LAR Defense",
+    "team": "LAR",
+    "position": "DEF",
+    "bye_week": 6
+  },
+  {
+    "full_name": "LV Defense",
+    "team": "LV",
+    "position": "DEF",
+    "bye_week": 7
+  },
+  {
+    "full_name": "MIA Defense",
+    "team": "MIA",
+    "position": "DEF",
+    "bye_week": 8
+  }
+]

@@ -1,4 +1,4 @@
-"""SQLAlchemy models for the tables sketched in SPEC §4.4.
+"""SQLAlchemy models for the tables sketched in specs/draft-assistant.md §4.4.
 
 Timestamps are TIMESTAMPTZ throughout and surrogate keys are BIGINT identities.
 Snapshot foreign keys cascade — deleting a snapshot discards its rows — while
@@ -36,7 +36,8 @@ def _player_fk() -> ForeignKey:
 
 
 class Snapshot(Base):
-    """One raw fetch, stored whole so a parser change can be replayed (SPEC §4.2)."""
+    """One raw fetch, stored whole so a parser change can be replayed
+    (specs/draft-assistant.md §4.2)."""
 
     __tablename__ = "snapshots"
     __table_args__ = (
@@ -61,12 +62,12 @@ class Player(Base):
     bye_week: Mapped[int | None] = mapped_column(SmallInteger)
     nflverse_id: Mapped[str | None] = mapped_column(Text, unique=True)
     sleeper_id: Mapped[str | None] = mapped_column(Text, unique=True)
-    # The bare numeric id (SPEC §2.1), never the 470.p.{id} form.
+    # The bare numeric id (specs/draft-assistant.md §2.1), never the 470.p.{id} form.
     yahoo_num_id: Mapped[int | None] = mapped_column(Integer, unique=True)
 
 
 class Projection(Base):
-    """Component stats only — never a fantasy-point total (SPEC §4.2)."""
+    """Component stats only — never a fantasy-point total (specs/draft-assistant.md §4.2)."""
 
     __tablename__ = "projections"
 
@@ -83,7 +84,7 @@ class Adp(Base):
     player_id: Mapped[int] = mapped_column(BigInteger, _player_fk(), primary_key=True)
     source: Mapped[str] = mapped_column(Text)
     adp: Mapped[float] = mapped_column(Double)
-    # Dispersion is nullable: FFC fits no data past ADP 166 (SPEC §2.3).
+    # Dispersion is nullable: FFC fits no data past ADP 166 (specs/draft-assistant.md §2.3).
     stdev: Mapped[float | None] = mapped_column(Double)
     high: Mapped[float | None] = mapped_column(Double)
     low: Mapped[float | None] = mapped_column(Double)
@@ -95,8 +96,8 @@ class LeagueConfig(Base):
 
     # autoincrement=False: season is a natural key (2026). SQLAlchemy makes a lone
     # integer primary key SERIAL, which would let an insert that omits the season
-    # silently store 1 — and SPEC §5 is explicit that a wrong value here has no
-    # visible symptom.
+    # silently store 1 — and specs/draft-assistant.md §5 is explicit that a wrong
+    # value here has no visible symptom.
     season: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     scoring_json: Mapped[dict] = mapped_column(JSONB)
     roster_slots_json: Mapped[dict] = mapped_column(JSONB)
@@ -105,36 +106,47 @@ class LeagueConfig(Base):
 
 
 class DraftEvent(Base):
-    """Append-only; the migration installs triggers that reject UPDATE, DELETE and TRUNCATE.
+    """One pick or one undo. Read by folding the stream in event_id order, never by select.
 
-    The key is surrogate because an undo (SPEC §8.2 opcode `u`) is recorded as another
-    row, so (draft_id, pick_no) is not unique. draft_id and team_id are opaque external
-    identifiers, kept as text so no format assumption can lose information.
+    The key is surrogate because an undo (specs/draft-assistant.md §8.2 opcode `u`) is
+    recorded as another row, so (draft_id, pick_no) is not unique. draft_id and team_id
+    are opaque external identifiers, kept as text so no format assumption can lose
+    information.
+
+    Not append-only: ADR-33 dropped the triggers that once rejected UPDATE, DELETE and
+    TRUNCATE, so a draft reset can delete its own rows. Nothing in the database now
+    prevents a wider delete than intended.
     """
 
     __tablename__ = "draft_events"
     __table_args__ = (
         CheckConstraint("source IN ('tap', 'manual')", name="ck_draft_events_source"),
+        CheckConstraint("event_type IN ('pick', 'undo')", name="ck_draft_events_event_type"),
     )
 
     event_id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     draft_id: Mapped[str] = mapped_column(Text)
     pick_no: Mapped[int] = mapped_column(Integer)
-    # Nullable on purpose: SPEC §8.3 requires recovery never to fail hard, and a NOT NULL
-    # foreign key would reject a live pick whose player could not be resolved.
+    # Nullable on purpose: specs/draft-assistant.md §8.3 requires recovery never to
+    # fail hard, and a NOT NULL foreign key would reject a live pick whose player
+    # could not be resolved.
     player_id: Mapped[int | None] = mapped_column(BigInteger, _player_fk())
     team_id: Mapped[str] = mapped_column(Text)
     source: Mapped[str] = mapped_column(Text)
+    # An undo is a further row naming the pick it reverses (ADR-32), so the board
+    # cannot be read without distinguishing the two.
+    event_type: Mapped[str] = mapped_column(Text)
     # clock_timestamp(), not now(): now() is transaction start, so a handler that
     # resolves a player before inserting — or batches a poll's picks — would stamp
-    # every pick with the same earlier instant, defeating §4.4's latency analysis.
+    # every pick with the same earlier instant, defeating the latency analysis in
+    # specs/draft-assistant.md §4.4.
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.clock_timestamp()
     )
 
 
 class IdExceptions(Base):
-    """The hand-maintained crosswalk stragglers of SPEC §4.3."""
+    """The hand-maintained crosswalk stragglers of specs/draft-assistant.md §4.3."""
 
     __tablename__ = "id_exceptions"
 

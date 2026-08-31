@@ -81,6 +81,7 @@ These are load-bearing. Each was confirmed on 2026-08-30.
 |---|---|
 | **The pick clock may be 30 seconds.** A sampled real 12-team Yahoo league has `draft_pick_duration=30` (Yahoo's documented default is 60). | Design the on-clock frame for **30 seconds**. This is the single most important UI constraint. |
 | **`position_draft_caps` exists** (e.g. `{"RB": "6"}` in a sampled live league). | Must be encoded, or the optimizer confidently recommends a seventh RB that Yahoo refuses — burning clock while you work out why. |
+| **The roster is 15 deep and has no kicker**: 1 QB, 2 RB, 3 WR, 1 TE, 1 W/R/T flex, 1 DEF, 6 bench. | **The draft is 15 rounds, not 16** — 12 teams × 15 = the 180 slots §2.3 measures FFC's marginals against. Kickers are never drafted, so a K on the board is noise; the projection and scoring tiers can ignore the position entirely. The flex slot means WR/RB/TE replacement levels are coupled and cannot be computed independently (§6.2). |
 | **Draft order is not published until ~30 minutes before.** `Team.draft_position` is unavailable earlier. | No pick-slot-dependent planning before then. Pre-draft mode must work without knowing the slot, then specialize. |
 | **Keeper rules are not exposed by any Yahoo API.** You get `Player.is_keeper` and a `status=K` filter, never keeper count, cost, or deadline. | Not applicable to this league, but noted so a future league doesn't surprise anyone. |
 
@@ -188,8 +189,15 @@ draft_events     (draft_id, pick_no, player_id, team_id, source, received_at)
 id_exceptions    (source, source_key, player_id, note)
 ```
 
-`draft_events` is append-only and carries `source` (`tap` | `manual`), which makes reconciliation and
-post-draft latency analysis possible.
+`draft_events` carries one row per pick and one per undo, distinguished by `event_type`
+(`pick` | `undo`), because the board is read by folding the stream in order rather than by
+selecting it. `source` (`tap` | `manual`) is what makes reconciliation and post-draft latency
+analysis possible.
+
+The table was originally append-only, enforced by a trigger. It is not any more: a draft **reset**
+deletes that draft's rows so the draft can be run again (§7.3, §9), and the triggers were removed
+rather than narrowed because this is a single-operator tool. Nothing at the database level now
+refuses a wider delete than intended. See ADR-33, which supersedes ADR-26.
 
 ---
 
@@ -341,6 +349,11 @@ used, the board stops being checkable and gets ignored under time pressure.
 **Click the player on the board.** Supports undo, for a pick the tap captured wrongly. Manual entries
 and tapped frames are the same event type to the engine.
 
+**Reset** clears a draft so it can be run again — for rehearsals, for the simulator, and for the
+next season's draft. It deletes that draft's `draft_events` rows and nothing else: a reset of one
+draft never touches another. Because the rows are genuinely gone, anything worth learning from a
+rehearsal must be read off before resetting it.
+
 ### 7.4 Pre-draft mode
 
 Tiered board, the biggest disagreements with ADP, and a slot-specific plan. Note that draft order
@@ -403,6 +416,9 @@ Submit it anyway, today, as a free option for 2027. Do not schedule around it.
 | **Local draft simulator** | ADP-sampling bot opponents driving full drafts | Engine logic, latency, and the live ADP-deviation adjustment — which fixed replays cannot exercise. Doubles as the regression test. |
 | **Yahoo mock drafts** | Full rehearsal against real mocks | The only end-to-end test of the tap, reconnect, and UI under a real clock. **Non-negotiable scope.** |
 | **Availability calibration** | Every mock yields hundreds of labelled survival predictions | Tune a single scalar on the cumulative hazard so expected disappearances equal actual picks, then check reliability. |
+
+Both rows above run the same draft more than once, so **reset (§7.3) is a prerequisite for
+validation**, not a convenience — without it the second rehearsal has nowhere to go.
 
 **Measure during rehearsal:**
 1. End-to-end lag from a pick landing in the room to appearing on the board — *nobody has published
