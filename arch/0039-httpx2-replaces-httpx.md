@@ -17,11 +17,12 @@ The HTTP client is httpx2 (2.12.0 at adoption). `src/redraft/http/client.py` and
 change: +httpx2, +httpcore2, +truststore; −httpx, −httpcore, −certifi.
 
 **Consequences**
-- **TLS trust moves from certifi's pinned CA bundle to the OS trust store, via truststore.** This
-  is the one behavioral change no test observes — the suite runs entirely through MockTransport —
-  which is why issue #36's verification includes a real TLS handshake against each of the four
-  specs/draft-assistant.md §4.1 source hosts. Certificate trust now varies with the machine's
-  keychain rather than with a pip-installed bundle.
+- **TLS trust moves from certifi's pinned CA bundle to the OS trust store, via truststore.** No
+  test observes this — the suite runs entirely through MockTransport — which is why issue #36's
+  verification includes a real TLS handshake against each of the four
+  specs/draft-assistant.md §4.1 source hosts. Certificate trust now follows the machine's
+  keychain rather than a pip-installed bundle, except where `SSL_CERT_FILE`/`SSL_CERT_DIR` is
+  set: httpx2 honors those ahead of truststore under its default `trust_env=True`.
 - The two libraries are disjoint class hierarchies: `except httpx.HTTPStatusError` does not catch
   the httpx2-raised one, and mixing one library's Client with the other's MockTransport or
   Response fails on a bare, message-less AssertionError. The migration is therefore atomic, and no
@@ -34,7 +35,9 @@ change: +httpx2, +httpcore2, +truststore; −httpx, −httpcore, −certifi.
   text=...)` round-trips with the plain-text body intact, `raise_for_status()` raises the same
   exception type and message on 999/403/301/302, MockTransport and `Client.get(url, params=...)`
   are unchanged, exceptions still carry `.request`/`.response`, and the default timeout remains
-  `Timeout(timeout=5.0)`, keeping the pick-clock budget of specs/draft-assistant.md §2.2 intact.
+  `Timeout(timeout=5.0)` — unchanged from httpx, and per-phase (connect/read/write/pool), not
+  per-request, so the pick-clock budget of specs/draft-assistant.md §2.2 still needs its own
+  timeout math when #5–#7 and #9 construct real clients.
 
 **Alternatives rejected**
 - **Stay on httpx 0.28.1.** No code change, and certifi's deterministic pip-installed trust
