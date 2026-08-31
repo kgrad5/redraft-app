@@ -16,7 +16,7 @@ import time
 from collections.abc import Callable
 from typing import Any, Literal, get_args
 
-import httpx
+import httpx2
 from sqlalchemy import Connection, bindparam, text
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -48,7 +48,7 @@ def fetch_json(
     source: Source,
     url: str,
     *,
-    client: httpx.Client,
+    client: httpx2.Client,
     params: dict[str, Any] | None = None,
     attempts: int = MAX_ATTEMPTS,
     backoff: float = BACKOFF_SECONDS,
