@@ -199,6 +199,33 @@ def test_snapshot_is_written_before_parsing(connection):
     assert unwrap_service(payload) == PAYLOAD["service"]
 
 
+def test_fetched_at_is_stamped_per_row_not_per_transaction(connection):
+    """clock_timestamp(), not now().
+
+    now() returns transaction start, so a daily job fetching four sources inside one
+    transaction would stamp all four with the same instant. Two fetches on one
+    connection is the assertion that tells the two functions apart — the same
+    reasoning already recorded on draft_events.received_at.
+    """
+    client, _ = make_client(200, 200)
+
+    first, _ = fetch(connection, client)
+    second, _ = fetch(connection, client)
+
+    stamps = (
+        connection.execute(
+            sa.text(
+                "SELECT fetched_at FROM snapshots WHERE snapshot_id IN (:a, :b) "
+                "ORDER BY snapshot_id"
+            ),
+            {"a": first, "b": second},
+        )
+        .scalars()
+        .all()
+    )
+    assert stamps[0] != stamps[1], "both rows carry one instant — now(), not clock_timestamp()"
+
+
 def test_throttled_fetch_writes_no_snapshot(connection):
     """ADR-36: a throttling episode leaves no trace in the database."""
     client, _ = make_client(*[THROTTLE_STATUS] * 2)
