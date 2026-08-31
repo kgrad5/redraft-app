@@ -38,6 +38,8 @@ Drop both triggers and the `draft_events_append_only()` function. `UPDATE`, `DEL
   reversed-then-redrafted slot still produces more than one row for a `(draft_id, pick_no)`.
 - The downgrade recreates the function and both triggers, so a rollback restores the old
   guarantee rather than leaving a permissive table under a schema version that claims otherwise.
+  ADR-34 makes that path conditional: it refuses outright while any undo row exists, because
+  dropping `event_type` under restored triggers would reseat reversed picks permanently.
 - specs/draft-assistant.md §4.4's "draft_events is append-only" is false as written and is
   corrected there.
 
