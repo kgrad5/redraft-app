@@ -1,7 +1,8 @@
 """Sleeper's component projections into `projections` (issue #6).
 
-The first `ProjectionProvider`, and the first writer of the table specs/draft-assistant.md
-§4.4 marks "components, never points". Nothing here decides what a component is —
+The first `ProjectionProvider`, and the first writer of the table that
+specs/draft-assistant.md §4.4 marks "components, never points". Nothing here decides
+what a component is —
 `providers.sleeper` classifies the keys and raises on one it cannot place — so the work
 in this module is the part that touches the database: resolve each Sleeper player to an
 internal id, and write a row per stat.
@@ -37,6 +38,17 @@ INSERT_PROJECTION = text(
     # No ON CONFLICT: the snapshot is new on every run, so the only way to collide is a
     # player appearing twice in one payload — which should raise rather than be absorbed.
 )
+
+
+class EmptyProjectionsError(Exception):
+    """The fetch succeeded but nothing survived to write.
+
+    The analogue of `nflverse.EmptyTableError`, and the same reflex: an ingester that
+    writes nothing and reports success hands issue #9 a green run and hands draft night
+    an empty board. It fires on a season whose projections are not yet published, on a
+    filter that stops matching, and on a crosswalk that resolves nobody — a total
+    narrowing rather than the partial one `unresolved` is for.
+    """
 
 
 class SleeperProjections:
@@ -91,6 +103,10 @@ class SleeperProjections:
                 for stat_key, value in components.items()
             )
 
-        if rows:
-            connection.execute(INSERT_PROJECTION, rows)
+        if not rows:
+            raise EmptyProjectionsError(
+                f"{len(payload)} records yielded no projections "
+                f"({unresolved} named a player the crosswalk could not place)"
+            )
+        connection.execute(INSERT_PROJECTION, rows)
         return IngestResult(snapshot_id, len(rows), unresolved)

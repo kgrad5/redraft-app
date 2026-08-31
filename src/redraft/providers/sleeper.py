@@ -71,10 +71,10 @@ def component_stats(stats: dict[str, float]) -> dict[str, float]:
 
     Every key is classified into exactly one of three sets — fantasy-point total, ADP,
     or component — and a key in none of them raises. Skipping the unrecognised instead
-    would drop a new component silently, which is the failure specs/draft-assistant.md
-    §4.3 names for players and which reads no better for a stat; writing it instead
-    would let a renamed point total through, which is the one thing this ingester exists
-    to prevent. Failing is the only option that gives up neither.
+    would drop a new component silently, which is the failure that
+    specs/draft-assistant.md §4.3 names for players and which reads no better for a
+    stat; writing it instead would let a renamed point total through, which is the one
+    thing this ingester exists to prevent. Failing gives up neither.
     """
     components = {}
     for key, value in stats.items():

@@ -13,7 +13,7 @@ import httpx2
 import pytest
 import sqlalchemy as sa
 
-from redraft.ingest.projections import SleeperProjections
+from redraft.ingest.projections import EmptyProjectionsError, SleeperProjections
 from redraft.providers.sleeper import (
     PayloadShapeError,
     UnknownStatKeyError,
@@ -237,6 +237,52 @@ def test_adp_shell_writes_nothing_and_is_not_counted_unresolved(connection):
     rows = written(connection)
     assert not [sid for sid, _ in rows if sid == SHELL_RESOLVABLE["player_id"]]
     assert result.unresolved == 1
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        pytest.param([], id="empty-response"),
+        pytest.param([SHELL_RESOLVABLE, SHELL_UNRESOLVABLE], id="nothing-but-adp-shells"),
+        pytest.param([UNRESOLVED], id="nobody-resolves"),
+    ],
+)
+def test_a_run_that_writes_nothing_fails_rather_than_reporting_success(connection, payload):
+    """A total narrowing, as against the partial one `unresolved` exists to count.
+
+    Sleeper answering with no projections — a season not yet published, a filter that
+    stopped matching, a crosswalk that resolves nobody — would otherwise hand issue #9
+    a green run and draft night an empty board.
+    """
+    with pytest.raises(EmptyProjectionsError):
+        ingest(connection, payload)
+
+    assert connection.execute(COUNT_ROWS).scalar_one() == 0
+
+
+def test_yahoo_id_is_never_a_join_key(connection):
+    """The issue's third out-of-scope item, pinned rather than left to construction.
+
+    specs/draft-assistant.md §2.3: Sleeper's yahoo_id is ~24% populated and null for
+    essentially every player drafted since 2021. A record carrying one that matches a
+    real player's yahoo_num_id must still not resolve — only sleeper_id may.
+    """
+    # Without this the test would pass vacuously: no player would carry the id, so a
+    # crosswalk widened to yahoo_num_id would still resolve nobody.
+    connection.execute(
+        sa.text("UPDATE players SET yahoo_num_id = 30123 WHERE sleeper_id = :sid"),
+        {"sid": MAHOMES["player_id"]},
+    )
+    poser = {
+        "player_id": "not-a-sleeper-id",
+        "yahoo_id": "30123",
+        "stats": {"rush_att": 99.0, "rec_yd": 99.0},
+    }
+
+    with pytest.raises(EmptyProjectionsError):
+        ingest(connection, [poser])
+
+    assert connection.execute(COUNT_ROWS).scalar_one() == 0
 
 
 def test_snapshot_holds_the_array_exactly_as_it_arrived(connection):
