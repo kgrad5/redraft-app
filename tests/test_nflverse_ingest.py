@@ -18,24 +18,32 @@ from redraft.providers.nflverse import PLAYERS_URL, SCHEDULE_URL, EmptyTableErro
 
 SEASON = 2026
 
+# St. Brown's two rows disagree on team so the max-week rule is observable: a
+# regression to min-week or first-row-wins lands him on BUF with BUF's bye.
+# Odunze's same-week CUT-then-ACT pair pins the team-conferring tie-break in the
+# row order that first-row-wins would get wrong.
 ROSTER_CSV = """\
 team,position,status,full_name,gsis_id,sleeper_id,yahoo_id,week
 KC,QB,ACT,Patrick Mahomes,00-0033873,4046,30123,1
-DET,WR,ACT,Amon-Ra St. Brown,00-0036973,7547,,1
+BUF,WR,ACT,Amon-Ra St. Brown,00-0036973,7547,,1
 DET,WR,ACT,Amon-Ra St. Brown,00-0036973,7547,,2
 BUF,RB,ACT,James Cook,00-0037248,8138,33555,1
 PHI,TE,ACT,Dallas Goedert,00-0034351,,31019,1
 PHI,TE,CUT,Zach Ertz,00-0031234,1339,28457,1
+PHI,WR,CUT,Rome Odunze,00-0039893,11626,,1
+PHI,WR,ACT,Rome Odunze,00-0039893,11626,40901,1
+KC,TE,RET,Travis Kelce,00-0030506,1466,26686,1
 KC,OL,ACT,Creed Humphrey,00-0036358,,,1
 """
 
-# The re-run world: Cook traded BUF -> DET, and Mahomes's sleeper_id went empty
-# upstream — the COALESCE in the upsert must keep the id already known.
+# The re-run world: Cook traded BUF -> DET, and Mahomes's sleeper_id and Cook's
+# yahoo_id went empty upstream — the COALESCE in the upsert must keep, for each
+# column independently, the id already known.
 ROSTER_RERUN_CSV = """\
 team,position,status,full_name,gsis_id,sleeper_id,yahoo_id,week
 KC,QB,ACT,Patrick Mahomes,00-0033873,,30123,1
 DET,WR,ACT,Amon-Ra St. Brown,00-0036973,7547,,2
-DET,RB,ACT,James Cook,00-0037248,8138,33555,1
+DET,RB,ACT,James Cook,00-0037248,8138,,1
 PHI,TE,ACT,Dallas Goedert,00-0034351,,31019,1
 PHI,TE,CUT,Zach Ertz,00-0031234,1339,28457,1
 """
@@ -104,7 +112,7 @@ def test_happy_path_populates_universe_teams_byes_and_ids(engine):
         count = ingest_players(conn, client=csv_client(), season=SEASON)
 
     players = all_players(engine)
-    assert count == len(players) == 6  # five fantasy roster players + one free agent
+    assert count == len(players) == 8  # seven fantasy roster players + one free agent
 
     mahomes = players["00-0033873"]
     assert mahomes["full_name"] == "Patrick Mahomes"
@@ -113,9 +121,14 @@ def test_happy_path_populates_universe_teams_byes_and_ids(engine):
     assert mahomes["sleeper_id"] == "4046"
     assert mahomes["yahoo_num_id"] == 30123
 
-    # Two roster rows, one player — the max-week row wins.
+    # Two roster rows, one player — the max-week row wins, and the rows disagree
+    # on team, so a min-week or first-row-wins regression lands on ("BUF", 3).
     st_brown = players["00-0036973"]
     assert (st_brown["team"], st_brown["bye_week"], st_brown["yahoo_num_id"]) == ("DET", 2, None)
+
+    # Same week, CUT row first: the team-conferring row wins the tie.
+    odunze = players["00-0039893"]
+    assert (odunze["team"], odunze["bye_week"], odunze["yahoo_num_id"]) == ("PHI", 2, 40901)
 
     # The players.csv-only free agent: in the universe, on no team, with no bye.
     aiyuk = players["00-0035676"]
@@ -127,15 +140,22 @@ def test_happy_path_populates_universe_teams_byes_and_ids(engine):
     assert "00-0026143" not in players
 
 
-def test_cut_roster_row_contributes_ids_but_no_team(engine):
+def test_cut_and_ret_rows_contribute_ids_but_no_team(engine):
     with engine.begin() as conn:
         ingest_players(conn, client=csv_client(), season=SEASON)
 
-    ertz = all_players(engine)["00-0031234"]
+    players = all_players(engine)
+    ertz = players["00-0031234"]
     assert ertz["team"] is None
     assert ertz["bye_week"] is None
     assert ertz["sleeper_id"] == "1339"
     assert ertz["yahoo_num_id"] == 28457
+
+    # RET is the set's other member, and the real 2026 file carries retired
+    # fantasy-position players on real teams — they must not look draftable.
+    kelce = players["00-0030506"]
+    assert (kelce["team"], kelce["bye_week"]) == (None, None)
+    assert (kelce["sleeper_id"], kelce["yahoo_num_id"]) == ("1466", 26686)
 
 
 def test_missing_upstream_table_fails_loudly(engine):
@@ -161,6 +181,26 @@ def test_team_without_exactly_one_bye_fails_naming_the_team(engine):
     assert all_players(engine) == {}
 
 
+def test_roster_team_absent_from_schedule_fails_naming_the_team(engine):
+    """The other bye guard: a schedule that derives cleanly but never mentions a
+    roster team must raise, not confer a silent NULL bye."""
+    stray = ROSTER_CSV + "SEA,QB,ACT,Sam Darnold,00-0035264,5121,31007,1\n"
+    with pytest.raises(IngestError, match="SEA"), engine.begin() as conn:
+        ingest_players(conn, client=csv_client(roster=stray), season=SEASON)
+
+    assert all_players(engine) == {}
+
+
+def test_roster_row_without_gsis_id_fails_loudly(engine):
+    """A row that cannot be keyed raises instead of being dropped — a silently
+    dropped player is a player missing on draft night."""
+    broken = ROSTER_CSV + "KC,RB,ACT,No Id,,9999,,1\n"
+    with pytest.raises(IngestError, match="gsis_id"), engine.begin() as conn:
+        ingest_players(conn, client=csv_client(roster=broken), season=SEASON)
+
+    assert all_players(engine) == {}
+
+
 def test_rerun_updates_in_place_and_keeps_known_ids(engine):
     with engine.begin() as conn:
         first = ingest_players(conn, client=csv_client(), season=SEASON)
@@ -170,7 +210,9 @@ def test_rerun_updates_in_place_and_keeps_known_ids(engine):
         second = ingest_players(conn, client=csv_client(roster=ROSTER_RERUN_CSV), season=SEASON)
 
     players = all_players(engine)
-    assert first == second == len(players) == 6
+    assert (first, second) == (8, 6)
+    # The upsert never deletes: players absent from the re-run keep their rows.
+    assert len(players) == 8
 
     # The trade is a real change: team moves, the row does not.
     cook = players["00-0037248"]
@@ -178,5 +220,7 @@ def test_rerun_updates_in_place_and_keeps_known_ids(engine):
     assert cook["bye_week"] == 2
     assert cook["player_id"] == cook_id_before
 
-    # sleeper_id went empty upstream; the id already known survives the upsert.
+    # Each crosswalk id column went empty upstream for a different player; the
+    # ids already known survive the upsert independently.
     assert players["00-0033873"]["sleeper_id"] == "4046"
+    assert cook["yahoo_num_id"] == 33555

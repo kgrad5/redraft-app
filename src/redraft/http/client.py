@@ -1,7 +1,8 @@
-"""The shared fetch layer every JSON ingester goes through (nflverse is CSV and bypasses it; ADR-40).
+"""The shared fetch layer every JSON ingester goes through.
 
-Three hazards from specs/draft-assistant.md §2.1 are handled here once rather than in
-each of #5, #6 and #7: the throttle signal is HTTP 999 and not 429, its body is plain
+nflverse is CSV and bypasses this layer entirely (ADR-40). Three hazards from
+specs/draft-assistant.md §2.1 are handled here once rather than in
+each of #6 and #7: the throttle signal is HTTP 999 and not 429, its body is plain
 text and not JSON, and it can strike the very first request of a session before clearing
 in about two minutes. Handled the standard way, the first fact means the throttle is
 never recognised and the second means the process crashes when it is.
