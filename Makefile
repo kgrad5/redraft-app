@@ -27,10 +27,8 @@ dev: $(STAMP) .env
 	set -a; . ./.env; set +a; $(PY) -m uvicorn redraft.main:app --reload \
 	  --host "$${APP_HOST:-127.0.0.1}" --port "$${APP_PORT:-8000}"
 
-# pytest exits 5 when it collects zero tests, which this issue requires to pass.
-# Every other exit code propagates unchanged.
 test: $(STAMP)
-	@$(PY) -m pytest; code=$$?; [ $$code -eq 5 ] && exit 0 || exit $$code
+	$(PY) -m pytest
 
 # --fix before format: check --fix rewrites code without reformatting it, so
 # running it last can leave the tree unformatted.
