@@ -36,7 +36,8 @@ shell rather than a projection and is skipped entirely.
   ingester writes `rush_att`, `rec_yd` and `pass_td`. Nothing reads that list
   programmatically, so the false example costs a reader rather than a run.
 - 2,559 of the 3,114 filtered records are ADP shells and write nothing. The 555 that
-  carry real components yield roughly 7,400 rows per snapshot.
+  carry real components hold 7,572 component values between them, of which the 518 that
+  resolve write 7,114 rows per snapshot — the gap is ADR-42's unresolved 37.
 - Classification is per key, so a player's row set varies by position. Nothing downstream
   may assume a fixed stat vocabulary.
 

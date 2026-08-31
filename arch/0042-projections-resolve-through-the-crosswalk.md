@@ -7,7 +7,7 @@
 record must resolve to an internal id before it can be written.
 specs/draft-assistant.md §4.3 gives three tiers — the nflverse crosswalk, then name +
 team + position matching, then a hand-maintained exception file — and assigns tiers two
-and three to issue #8, which does not exist yet. Issue #5 populated
+and three to issue #8, whose files do not exist yet. Issue #5 populated
 `players.sleeper_id` from `roster_weekly_2026`, so tier one is available now. Measured
 live on 2026-08-31: 837 distinct `sleeper_id` values on QB/RB/WR/TE roster rows resolve
 518 of the 555 component-bearing Sleeper records.

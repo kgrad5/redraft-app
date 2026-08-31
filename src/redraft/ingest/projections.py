@@ -48,6 +48,12 @@ class EmptyProjectionsError(Exception):
     an empty board. It fires on a season whose projections are not yet published, on a
     filter that stops matching, and on a crosswalk that resolves nobody — a total
     narrowing rather than the partial one `unresolved` is for.
+
+    It raises on the caller's transaction, so ADR-38's rollback takes the snapshot with
+    it and the payload that would say which of those three fired is gone. Diagnosing one
+    means re-fetching. `nflverse.EmptyTableError` has the same property; making it
+    otherwise would commit the snapshot ahead of the parse, which ADR-38 leaves to each
+    ingester to decide rather than to this exception.
     """
 
 
