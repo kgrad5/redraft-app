@@ -1,4 +1,4 @@
-# Postgres only. The app runs natively in a venv (SPEC §3) so it can be
+# Postgres only. The app runs natively in a venv (specs/draft-assistant.md §3) so it can be
 # restarted in seconds mid-draft without a container rebuild.
 
 services:
@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-redraft}
       POSTGRES_DB: ${POSTGRES_DB:-redraft}
     ports:
-      # Loopback only. SPEC §1: personal tool, one league, owner's machine.
+      # Loopback only. specs/draft-assistant.md §1: personal tool, one league, owner's machine.
       # Without the host_ip this binds 0.0.0.0 and exposes the database, with
       # its committed default password, to every host on the local network.
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"

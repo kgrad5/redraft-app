@@ -1,25 +1,17 @@
-"""Schema tests: the migration applies, the tables match the models, draft_events is append-only.
+"""Schema tests: the migration applies and the tables match the models.
 
-These run against a throwaway database, never the configured one. They call
-`downgrade base`, which would wipe whatever they were pointed at.
+The throwaway-database fixtures live in conftest.py, shared with the draft tests.
 """
-
-import os
-from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.autogenerate import compare_metadata
-from alembic.config import Config
 from alembic.migration import MigrationContext
 
 from redraft.db.models import Base
-from redraft.settings import settings
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-
-# SPEC §4.4. Named literally rather than derived from Base.metadata, so a table
+# specs/draft-assistant.md §4.4. Named literally rather than derived from Base.metadata, so a table
 # dropped from the models fails a test instead of quietly shrinking the expectation.
 EXPECTED_TABLES = {
     "snapshots",
@@ -30,59 +22,6 @@ EXPECTED_TABLES = {
     "draft_events",
     "id_exceptions",
 }
-
-
-@pytest.fixture(scope="module")
-def database_url():
-    """Create a throwaway database and point Alembic at it via REDRAFT_DATABASE_URL."""
-    name = f"redraft_test_{os.getpid()}"
-    admin_url = sa.make_url(settings.sqlalchemy_database_url).set(database="postgres")
-    admin = sa.create_engine(admin_url, isolation_level="AUTOCOMMIT")
-    with admin.connect() as conn:
-        conn.execute(sa.text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
-        conn.execute(sa.text(f'CREATE DATABASE "{name}"'))
-
-    # render_as_string, not str(): str() masks the password as ***.
-    url = (
-        sa.make_url(settings.sqlalchemy_database_url)
-        .set(database=name)
-        .render_as_string(hide_password=False)
-    )
-    # Restore rather than delete: a developer may have this exported at a scratch
-    # database, and deleting it would drop later in-process migrations through to
-    # the configured one — the database this module must never touch.
-    previous = os.environ.get("REDRAFT_DATABASE_URL")
-    os.environ["REDRAFT_DATABASE_URL"] = url
-    try:
-        yield url
-    finally:
-        if previous is None:
-            del os.environ["REDRAFT_DATABASE_URL"]
-        else:
-            os.environ["REDRAFT_DATABASE_URL"] = previous
-        with admin.connect() as conn:
-            conn.execute(sa.text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
-        admin.dispose()
-
-
-@pytest.fixture(scope="module")
-def engine(database_url):
-    eng = sa.create_engine(database_url)
-    try:
-        yield eng
-    finally:
-        eng.dispose()
-
-
-@pytest.fixture(scope="module")
-def alembic_config(database_url) -> Config:
-    return Config(str(REPO_ROOT / "alembic.ini"))
-
-
-@pytest.fixture(scope="module")
-def migrated(alembic_config):
-    command.upgrade(alembic_config, "head")
-    return alembic_config
 
 
 def test_models_cover_the_spec_tables():
@@ -107,50 +46,65 @@ def test_migration_matches_the_models(migrated, engine):
     assert diff == [], diff
 
 
-def test_draft_events_rejects_update_delete_and_truncate(migrated, engine):
-    with engine.begin() as conn:
-        player_id = conn.execute(
-            sa.text(
-                "INSERT INTO players (full_name, position) VALUES ('Test Player', 'RB') "
-                "RETURNING player_id"
-            )
-        ).scalar_one()
-        conn.execute(
-            sa.text(
-                "INSERT INTO draft_events (draft_id, pick_no, player_id, team_id, source) "
-                "VALUES ('draft-1', 1, :player_id, 'team-1', 'tap')"
-            ),
-            {"player_id": player_id},
-        )
-
-    for statement in (
-        "UPDATE draft_events SET pick_no = 99",
-        "DELETE FROM draft_events",
-        "TRUNCATE draft_events",
-    ):
-        with pytest.raises(sa.exc.DBAPIError, match="append-only"), engine.begin() as conn:
-            conn.execute(sa.text(statement))
-
-    with engine.connect() as conn:
-        assert conn.execute(sa.text("SELECT count(*) FROM draft_events")).scalar_one() == 1
-
-
 def test_draft_events_accepts_a_null_player_id(migrated, engine):
     """ADR-28. Without this, tidying the column to NOT NULL breaks nothing here and
-    fails a live pick instead, which is the failure SPEC §8.3 forbids."""
+    fails a live pick instead, which is the failure specs/draft-assistant.md §8.3 forbids."""
     with engine.begin() as conn:
         conn.execute(
             sa.text(
-                "INSERT INTO draft_events (draft_id, pick_no, player_id, team_id, source) "
-                "VALUES ('unresolved', 99, NULL, 'team-1', 'tap')"
+                "INSERT INTO draft_events "
+                "(draft_id, pick_no, player_id, team_id, source, event_type) "
+                "VALUES ('unresolved', 99, NULL, 'team-1', 'tap', 'pick')"
             )
         )
     with engine.connect() as conn:
         assert (
             conn.execute(
-                sa.text("SELECT count(*) FROM draft_events WHERE player_id IS NULL")
+                sa.text(
+                    "SELECT count(*) FROM draft_events "
+                    "WHERE draft_id = 'unresolved' AND player_id IS NULL"
+                )
             ).scalar_one()
             == 1
+        )
+
+
+def test_a_null_player_id_can_be_filled_in_place(migrated, engine):
+    """ADR-33 lifted ADR-28's blocking consequence: UPDATE is no longer rejected, so a
+    tapped pick whose player could not be resolved is reconcilable where it sits.
+
+    Inserts its own unresolved pick rather than reading the one the test above leaves
+    behind. A test that depends on a sibling's row passes in file order and fails under
+    -k, -p xdist, or any reordering.
+    """
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO draft_events "
+                "(draft_id, pick_no, player_id, team_id, source, event_type) "
+                "VALUES ('reconcile', 12, NULL, 'team-2', 'tap', 'pick')"
+            )
+        )
+        player_id = conn.execute(
+            sa.text(
+                "INSERT INTO players (full_name, position) VALUES ('Late Resolution', 'WR') "
+                "RETURNING player_id"
+            )
+        ).scalar_one()
+        conn.execute(
+            sa.text(
+                "UPDATE draft_events SET player_id = :player_id "
+                "WHERE draft_id = 'reconcile' AND player_id IS NULL"
+            ),
+            {"player_id": player_id},
+        )
+
+    with engine.connect() as conn:
+        assert (
+            conn.execute(
+                sa.text("SELECT player_id FROM draft_events WHERE draft_id = 'reconcile'")
+            ).scalar_one()
+            == player_id
         )
 
 
@@ -163,17 +117,51 @@ def test_draft_events_accepts_a_null_player_id(migrated, engine):
         ),
         (
             (
-                "INSERT INTO draft_events (draft_id, pick_no, team_id, source) "
-                "VALUES ('d', 1, 't', 'auto')"
+                "INSERT INTO draft_events (draft_id, pick_no, team_id, source, event_type) "
+                "VALUES ('d', 1, 't', 'auto', 'pick')"
             ),
             "ck_draft_events_source",
         ),
+        (
+            (
+                "INSERT INTO draft_events (draft_id, pick_no, team_id, source, event_type) "
+                "VALUES ('d', 1, 't', 'manual', 'reset')"
+            ),
+            "ck_draft_events_event_type",
+        ),
     ],
 )
-def test_source_columns_reject_unknown_values(migrated, engine, statement, constraint):
-    """ADR-31, and the tap|manual set the issue names."""
+def test_closed_set_columns_reject_unknown_values(migrated, engine, statement, constraint):
+    """ADR-31, the tap|manual set the issue names, and ADR-32's pick|undo."""
     with pytest.raises(sa.exc.IntegrityError, match=constraint), engine.begin() as conn:
         conn.execute(sa.text(statement))
+
+
+def test_downgrade_refuses_while_undo_rows_exist(migrated, alembic_config, engine):
+    """Dropping event_type would turn every undo row into an ordinary pick, silently
+    reseating the pick it reverses, and the restored triggers would then put those rows
+    beyond DELETE. The guard runs before any DDL, so a refusal changes nothing.
+
+    Cleans up after itself: leaving the row behind would break test_downgrade_then_upgrade.
+    """
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO draft_events "
+                "(draft_id, pick_no, player_id, team_id, source, event_type) "
+                "VALUES ('rollback-guard', 3, NULL, 'team-1', 'manual', 'undo')"
+            )
+        )
+    try:
+        with pytest.raises(RuntimeError, match="undo row"):
+            command.downgrade(alembic_config, "-1")
+        # The guard fired before any DDL, so the schema is untouched.
+        assert "event_type" in {
+            column["name"] for column in sa.inspect(engine).get_columns("draft_events")
+        }
+    finally:
+        with engine.begin() as conn:
+            conn.execute(sa.text("DELETE FROM draft_events WHERE draft_id = 'rollback-guard'"))
 
 
 def test_downgrade_then_upgrade(migrated, alembic_config, engine):
