@@ -22,3 +22,7 @@ data/cache/
 .DS_Store
 .idea/
 .vscode/
+
+# Claude Code — per-developer sandbox permissions.
+# A shared .claude/settings.json stays trackable.
+.claude/settings.local.json
