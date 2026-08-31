@@ -5,14 +5,14 @@ an HTTP 999 backs off and retries without raising and without its plain-text bod
 reaching a JSON decoder, a 999 on the very first request of a session is survived, and
 the raw payload reaches `snapshots` before any parsing runs.
 
-Nothing here touches the network — every client is an `httpx.MockTransport` replaying a
+Nothing here touches the network — every client is an `httpx2.MockTransport` replaying a
 scripted list of statuses. `sleep` is a list's `append`, so a two-minute backoff costs
 nothing and the delays it would have taken become assertable.
 """
 
 import json
 
-import httpx
+import httpx2
 import pytest
 import sqlalchemy as sa
 
@@ -48,14 +48,14 @@ def make_client(*statuses):
     remaining = list(statuses)
     served = []
 
-    def handle(request: httpx.Request) -> httpx.Response:
+    def handle(request: httpx2.Request) -> httpx2.Response:
         status = remaining.pop(0)
         served.append(status)
         if status == THROTTLE_STATUS:
-            return httpx.Response(status, text=THROTTLE_BODY)
-        return httpx.Response(status, json=PAYLOAD)
+            return httpx2.Response(status, text=THROTTLE_BODY)
+        return httpx2.Response(status, json=PAYLOAD)
 
-    return httpx.Client(transport=httpx.MockTransport(handle)), served
+    return httpx2.Client(transport=httpx2.MockTransport(handle)), served
 
 
 @pytest.fixture
@@ -242,7 +242,7 @@ def test_error_status_writes_no_snapshot(connection):
     delays = []
     client, served = make_client(403)
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(httpx2.HTTPStatusError):
         fetch(connection, client, sleep=delays.append)
 
     assert served == [403], "a 403 was retried as though it were a throttle"
