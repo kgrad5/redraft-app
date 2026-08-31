@@ -1,4 +1,5 @@
-"""Initial schema: the seven tables of SPEC §4.4, with draft_events made append-only.
+"""Initial schema: the seven tables of specs/draft-assistant.md §4.4, with
+draft_events made append-only.
 
 Revision ID: 333bdc42eb4b
 Revises:
