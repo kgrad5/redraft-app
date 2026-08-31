@@ -3,9 +3,9 @@
 The universe is a union, because neither source table contains the other: weekly
 roster rows carry the crosswalk ids (the players dataset stopped carrying them),
 and the players dataset carries the free agents no roster row mentions. Positions
-are QB/RB/WR/TE only — the league rosters no kicker, and specs/draft-assistant.md
-§2.2 records that the projection tiers can ignore the position entirely. Team
-defenses do not exist in nflverse at all; they are a later issue's problem.
+are QB/RB/WR/TE only — the league rosters no kicker, and the projection tiers can
+ignore the position entirely (specs/draft-assistant.md §2.2). Team defenses do
+not exist in nflverse at all; they are a later issue's problem.
 
 Everything here fails loudly rather than quietly narrowing the board: a missing
 table 404s, a header-only table raises, a roster team without exactly one derivable
