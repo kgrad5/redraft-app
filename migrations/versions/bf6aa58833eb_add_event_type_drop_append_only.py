@@ -57,6 +57,23 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Checked before the triggers go back on, and before the column goes away. Dropping
+    # event_type turns every undo row into an ordinary pick, silently reseating the picks
+    # they reverse — and the restored triggers then put those rows beyond DELETE, so the
+    # damage is permanent. ADR-24 chose Alembic so a bad migration is not a manual repair
+    # under a draft clock; refusing here is what makes that true in this direction too.
+    undos = (
+        op.get_bind()
+        .execute(sa.text("SELECT count(*) FROM draft_events WHERE event_type = 'undo'"))
+        .scalar_one()
+    )
+    if undos:
+        raise RuntimeError(
+            f"draft_events holds {undos} undo row(s). Downgrading would drop event_type, "
+            "turning each one into a pick and permanently reseating the pick it reverses. "
+            "Resolve or delete those rows first."
+        )
+
     op.execute(CREATE_APPEND_ONLY)
     op.drop_constraint("ck_draft_events_event_type", "draft_events", type_="check")
     op.drop_column("draft_events", "event_type")

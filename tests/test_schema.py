@@ -137,6 +137,33 @@ def test_closed_set_columns_reject_unknown_values(migrated, engine, statement, c
         conn.execute(sa.text(statement))
 
 
+def test_downgrade_refuses_while_undo_rows_exist(migrated, alembic_config, engine):
+    """Dropping event_type would turn every undo row into an ordinary pick, silently
+    reseating the pick it reverses, and the restored triggers would then put those rows
+    beyond DELETE. The guard runs before any DDL, so a refusal changes nothing.
+
+    Cleans up after itself: leaving the row behind would break test_downgrade_then_upgrade.
+    """
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO draft_events "
+                "(draft_id, pick_no, player_id, team_id, source, event_type) "
+                "VALUES ('rollback-guard', 3, NULL, 'team-1', 'manual', 'undo')"
+            )
+        )
+    try:
+        with pytest.raises(RuntimeError, match="undo row"):
+            command.downgrade(alembic_config, "-1")
+        # The guard fired before any DDL, so the schema is untouched.
+        assert "event_type" in {
+            column["name"] for column in sa.inspect(engine).get_columns("draft_events")
+        }
+    finally:
+        with engine.begin() as conn:
+            conn.execute(sa.text("DELETE FROM draft_events WHERE draft_id = 'rollback-guard'"))
+
+
 def test_downgrade_then_upgrade(migrated, alembic_config, engine):
     command.downgrade(alembic_config, "base")
     assert not (EXPECTED_TABLES & set(sa.inspect(engine).get_table_names()))

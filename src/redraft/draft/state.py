@@ -89,7 +89,9 @@ class Event:
 class Pick:
     pick_no: int
     team_id: str
-    player_id: int
+    # Nullable for the same reason the column is (ADR-28): a tapped pick whose player
+    # could not be resolved still occupies its slot. It is recorded but not attributable.
+    player_id: int | None
 
 
 class DraftState:
@@ -125,7 +127,15 @@ class DraftState:
 
     @property
     def drafted_player_ids(self) -> frozenset[int]:
-        return frozenset(pick.player_id for pick in self.picks)
+        """Players actually off the board.
+
+        An unresolved pick (ADR-28) contributes nothing here: it holds its slot, but it
+        names no player, so there is no one to mark unavailable. Letting a `None` into
+        this set would subtract nothing from `available_player_ids`, and the real player
+        behind that pick would stay draftable — seating them on a second roster the
+        moment identity resolution fills the null in.
+        """
+        return frozenset(pick.player_id for pick in self.picks if pick.player_id is not None)
 
     @property
     def available_player_ids(self) -> frozenset[int]:
@@ -199,6 +209,19 @@ def reduce_events(
                 raise MalformedEventStream(
                     f"event {event.event_id} undoes pick {event.pick_no}, "
                     f"but pick {standing.pick_no} is the one standing"
+                )
+            # ADR-32: the undo row repeats the reversed pick's player and team, and no
+            # database constraint makes them agree. This is where a disagreement is
+            # caught — #24 reconciles a mis-captured tap undo against exactly this.
+            if standing.player_id != event.player_id:
+                raise MalformedEventStream(
+                    f"event {event.event_id} undoes pick {event.pick_no} naming player "
+                    f"{event.player_id}, but player {standing.player_id} is seated there"
+                )
+            if standing.team_id != event.team_id:
+                raise MalformedEventStream(
+                    f"event {event.event_id} undoes pick {event.pick_no} naming team "
+                    f"{event.team_id}, but {standing.team_id} made that pick"
                 )
             picks.pop()
         else:

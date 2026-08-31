@@ -218,6 +218,28 @@ def test_an_unknown_player_is_refused(client):
     assert refused.json()["detail"]["reason"] == "unknown_player"
 
 
+def test_a_malformed_stream_is_refused_not_a_crash(client, engine, player_pool):
+    """ADR-33 took the append-only triggers off, so a DELETE or UPDATE issued by hand in
+    psql can leave a stream the reducer refuses. Mid-draft that has to arrive as a
+    refusal carrying a reason, not a bare 500 with nothing to act on."""
+    draft_id = "malformed"
+    assert take(client, draft_id, player_pool[0]["player_id"]).status_code == 201
+
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO draft_events "
+                "(draft_id, pick_no, player_id, team_id, source, event_type) "
+                "VALUES (:draft_id, 99, NULL, 'team-01', 'tap', 'undo')"
+            ),
+            {"draft_id": draft_id},
+        )
+
+    response = client.get(f"/draft/{draft_id}")
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["reason"] == "malformed_event_stream"
+
+
 def test_reset_clears_only_its_own_draft(client, engine, player_pool):
     kept, cleared = "reset-kept", "reset-cleared"
 

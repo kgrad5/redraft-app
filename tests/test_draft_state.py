@@ -186,6 +186,39 @@ def test_an_undo_with_nothing_standing_raises():
         reduce_events(settings_12(), [undo(1, 1, "team-01", 100)], {100: "RB"})
 
 
+def test_an_undo_naming_the_wrong_player_raises():
+    """ADR-32: the undo row repeats the pick's player and no constraint makes them agree,
+    so the reducer is the only thing that can catch a mis-captured undo."""
+    events = [pick(1, 1, "team-01", 100), undo(2, 1, "team-01", 999)]
+    with pytest.raises(MalformedEventStream, match="player 999"):
+        reduce_events(settings_12(), events, {100: "RB", 999: "WR"})
+
+
+def test_an_undo_naming_the_wrong_team_raises():
+    events = [pick(1, 1, "team-01", 100), undo(2, 1, "team-07", 100)]
+    with pytest.raises(MalformedEventStream, match="team-07"):
+        reduce_events(settings_12(), events, {100: "RB"})
+
+
+def test_an_unresolved_pick_holds_its_slot_without_taking_a_player():
+    """ADR-28: a tapped pick whose player did not resolve is recorded but not
+    attributable. It must occupy the slot and mark nobody unavailable — a None in the
+    drafted set would leave the real player draftable and seat them twice once identity
+    resolution fills the null in."""
+    events = [
+        pick(1, 1, "team-01", 100),
+        Event(event_id=2, event_type="pick", pick_no=2, team_id="team-02", player_id=None),
+    ]
+    state = reduce_events(settings_12(), events, {100: "RB", 200: "WR"})
+
+    assert state.picks_made == 2
+    assert state.next_pick_no == 3
+    assert state.team_on_the_clock == "team-03"
+    assert None not in state.drafted_player_ids
+    assert state.drafted_player_ids == frozenset({100})
+    assert state.available_player_ids == frozenset({200})
+
+
 def test_events_are_reduced_in_event_id_order_not_arrival_order():
     events = [
         pick(2, 2, "team-02", 200),

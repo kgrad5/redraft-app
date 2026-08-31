@@ -33,8 +33,16 @@ INSERT_EVENT = text(
 
 
 def get_connection():
-    """One transaction per request, so the read that decides a pick and the write that
-    records it cannot come apart."""
+    """One transaction per request: the read that decides a pick and the write that
+    records it commit together, or neither does.
+
+    That is atomicity, not isolation. Under READ COMMITTED two overlapping requests can
+    both read pick N and both insert it, and ADR-27 deliberately leaves
+    `(draft_id, pick_no)` without a unique index, so nothing would reject the second.
+    Harmless while the only writer is one person clicking. #24's tap writing while a
+    manual entry is in flight is where it stops being harmless and wants an advisory
+    lock on `draft_id`.
+    """
     with engine.begin() as connection:
         yield connection
 
@@ -103,14 +111,28 @@ def refusal(error: DraftError) -> HTTPException:
     return HTTPException(status_code=409, detail={"reason": error.reason, "message": str(error)})
 
 
+def current_state(connection: Connection, settings: DraftSettings) -> DraftState:
+    """`load_state`, but a stream the reducer refuses is a 409 carrying its reason
+    rather than a bare 500.
+
+    Reachable since ADR-33 removed the append-only triggers: a `DELETE` or `UPDATE`
+    issued by hand in `psql` can leave a stream that no longer reduces. Mid-draft, a
+    500 with no machine-readable cause is the worst possible way to find that out.
+    """
+    try:
+        return load_state(connection, settings)
+    except DraftError as error:
+        raise refusal(error) from error
+
+
 @router.get("/{draft_id}")
 def read_draft(connection: ConnectionDep, settings: SettingsDep) -> dict:
-    return view(load_state(connection, settings))
+    return view(current_state(connection, settings))
 
 
 @router.post("/{draft_id}/picks", status_code=201)
 def make_pick(body: PickRequest, connection: ConnectionDep, settings: SettingsDep) -> dict:
-    state = load_state(connection, settings)
+    state = current_state(connection, settings)
     try:
         state.validate_pick(body.player_id)
     except DraftError as error:
@@ -126,12 +148,12 @@ def make_pick(body: PickRequest, connection: ConnectionDep, settings: SettingsDe
             "event_type": "pick",
         },
     )
-    return view(load_state(connection, settings))
+    return view(current_state(connection, settings))
 
 
 @router.post("/{draft_id}/undo")
 def undo_pick(connection: ConnectionDep, settings: SettingsDep) -> dict:
-    state = load_state(connection, settings)
+    state = current_state(connection, settings)
     try:
         state.validate_undo()
     except DraftError as error:
@@ -150,7 +172,7 @@ def undo_pick(connection: ConnectionDep, settings: SettingsDep) -> dict:
             "event_type": "undo",
         },
     )
-    return view(load_state(connection, settings))
+    return view(current_state(connection, settings))
 
 
 @router.post("/{draft_id}/reset")
@@ -164,4 +186,4 @@ def reset_draft(connection: ConnectionDep, settings: SettingsDep) -> dict:
         text("DELETE FROM draft_events WHERE draft_id = :draft_id"),
         {"draft_id": settings.draft_id},
     )
-    return view(load_state(connection, settings))
+    return view(current_state(connection, settings))
