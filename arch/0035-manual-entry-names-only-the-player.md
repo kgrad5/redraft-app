@@ -3,10 +3,10 @@
 **Status:** Accepted · 2026-08-30 · issue #3
 
 **Context**
-§7.3 says manual entry is "click the player on the board", and §8.1 makes it the substrate every
-other feed accelerates. Both feeds write the same `draft_events` rows, so the shape of the write
-is a contract that #19's board UI and #24's tap will both bind to, and it has to be settled before
-either of them exists.
+specs/draft-assistant.md §7.3 says manual entry is "click the player on the board", and its §8.1
+makes it the substrate every other feed accelerates. Both feeds write the same `draft_events`
+rows, so the shape of the write is a contract that #19's board UI and #24's tap will both bind to,
+and it has to be settled before either of them exists.
 
 **Decision**
 `POST /draft/{draft_id}/picks` carries `{"player_id": ...}` and nothing else. The pick number, the
@@ -25,7 +25,8 @@ through two contracts, and the asymmetry is the point: manual entry decides, the
 - #19 can render a refusal without parsing prose. A new refusal means a new code, which is a
   visible change rather than a silent one.
 - #24 cannot reuse this endpoint as it stands. Deriving the team would overwrite what Yahoo
-  actually reported, which is exactly the mismatch §4.4's reconciliation exists to detect.
+  actually reported, which is exactly the mismatch the reconciliation in
+  specs/draft-assistant.md §4.4 exists to detect.
 - Nothing validates that a tap-supplied `pick_no` agrees with the board's own count. That check
   belongs to #24's reconciliation, and this entry is what tells it the check is its job.
 
