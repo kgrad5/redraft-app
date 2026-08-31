@@ -23,6 +23,13 @@ class IngestResult:
 
     snapshot_id: int
     rows_written: int
+    # Source records that named a player this run could not place, and so wrote
+    # nothing for. It is a provider's only channel for reporting what it declined to
+    # write, which specs/draft-assistant.md §4.3 makes it owe: a silently dropped
+    # player is a player missing from the board. A count is a tripwire rather than
+    # the unmatched-player report itself, which #8 owns. Defaulted, because a
+    # provider whose source and key space coincide can never leave one behind.
+    unresolved: int = 0
 
 
 class ProjectionProvider(Protocol):
