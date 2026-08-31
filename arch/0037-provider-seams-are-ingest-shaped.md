@@ -35,5 +35,5 @@ which providers to run and what to do when one fails. `PickFeed` is not ingest-s
   one row shape before any of them exists and moves each source's key handling into #9, which is the
   coupling ADR-29 pushes downstream.
 - **A marker `PickFeed` with no methods**, leaving every question to #24. Honest about what is
-  unknown, but a seam with no method is a comment rather than a seam, and specs/draft-assistant.md
-  §1.1 asks for three of them in place from day one.
+  unknown, but a seam with no method is a comment rather than a seam, and
+  specs/draft-assistant.md §1.1 asks for three of them in place from day one.

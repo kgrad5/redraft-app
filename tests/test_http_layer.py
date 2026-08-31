@@ -81,10 +81,21 @@ def test_service_envelope_is_unwrapped():
     assert unwrap_service(PAYLOAD) == PAYLOAD["service"]
 
 
-def test_unenveloped_payload_is_refused():
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"players": []},
+        # The likeliest shape of a dropped envelope: a bare array of players. It must
+        # raise EnvelopeError like any other, not a TypeError the caller cannot catch.
+        [{"name": "Ja'Marr Chase"}, {"name": "Bijan Robinson"}],
+        "service unavailable",
+        None,
+    ],
+)
+def test_unenveloped_payload_is_refused(payload):
     """A v3 response that stopped being enveloped is a shape change, not a pass-through."""
     with pytest.raises(EnvelopeError):
-        unwrap_service({"players": []})
+        unwrap_service(payload)
 
 
 def test_throttle_backs_off_and_retries(connection):
@@ -168,10 +179,14 @@ def test_raw_payload_is_stored_enveloped(connection):
 
 
 def test_snapshot_is_written_before_parsing(connection):
-    """The row is durable before anything parses it.
+    """The row is written and readable before anything parses it.
 
     `fetch_json` does not return until the INSERT has run, so the ordering is
     structural; this asserts the observable consequence of it.
+
+    Written, not durable: the INSERT is on the caller's transaction, so a caller that
+    later rolls back discards this row too. `fetch_json`'s docstring says what that
+    costs and leaves the choice to #9.
     """
     client, _ = make_client(200)
 

@@ -65,8 +65,15 @@ def fetch_json(
     thousandth take the identical path.
 
     `sleep` is a parameter so a test can assert the backoff that would have been taken
-    without taking it. The caller owns the transaction, so it also decides whether a
-    later failure rolls this snapshot back.
+    without taking it.
+
+    The caller owns the transaction, and two consequences follow that #9 has to answer.
+    A parse that raises inside that transaction takes the snapshot with it — which is
+    the failure specs/draft-assistant.md §4.2's replay-without-refetch is most wanted
+    for — so a caller that wants the payload kept regardless must commit it separately.
+    And a sustained throttle blocks this thread in `sleep` for up to
+    `(attempts - 1) * backoff`, six minutes on the defaults, with that transaction held
+    open the whole time.
     """
     for attempt in range(1, attempts + 1):
         response = client.get(url, params=params)
