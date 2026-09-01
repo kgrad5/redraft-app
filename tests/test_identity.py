@@ -504,6 +504,67 @@ def test_two_records_claiming_one_player_are_reported_where_a_raise_would_abort_
     assert record.detail == "already placed as 'Kenneth Walker III'"
 
 
+def test_a_better_tier_takes_the_player_from_a_record_that_arrived_first(
+    connection, empty_exceptions
+):
+    """Precedence has to survive contention, not just hold within one record.
+
+    Resolving in tier order places each record correctly on its own. A flat
+    first-come claim then throws that away: whichever record the source happened to
+    list first keeps the player. Here the fold arrives first and the crosswalk id —
+    a positive identification — arrives second, so a first-come claim drops the one
+    record that is certain, and reversing the payload reverses which player gets
+    written. That is payload order deciding identity (ADR-51).
+    """
+    index = resolver(connection, empty_exceptions)
+    walker = player_id_of(connection, "Kenneth Walker III")
+
+    assert index.resolve(None, "Kenneth Walker", "RB") == walker  # tier 4, first
+    assert index.resolve("8135", "Whoever This Is", "RB") == walker  # tier 2, wins
+
+    (displaced,) = index.unmatched
+    assert displaced.name == "Kenneth Walker"
+    assert displaced.detail == (
+        "displaced by 'Whoever This Is', which matched on the crosswalk tier"
+    )
+
+
+def test_an_exception_entry_outranks_an_automatic_match_that_arrived_first(connection, tmp_path):
+    """The issue's fourth criterion, in the case where it can actually fail.
+
+    Consulting the file first is not enough on its own: if some other record has
+    already claimed the player automatically, a first-come claim drops the operator's
+    override anyway — the override just loses later in the function instead of
+    earlier. ADR-50 says the file overrides automatic matching; this is the test that
+    holds it to that when something is actually competing.
+    """
+    path = write_exceptions(
+        tmp_path / "e.yaml",
+        '- source: sleeper\n  source_key: "OVERRIDE"\n  full_name: "Kenneth Walker III"\n'
+        '  position: RB\n  note: "the operator has the last word"\n',
+    )
+    index = Resolver(connection, "sleeper", exceptions_path=path, on_duplicate="report")
+    walker = player_id_of(connection, "Kenneth Walker III")
+
+    assert index.resolve("8135", "Kenneth Walker III", "RB") == walker  # automatic, first
+    assert index.resolve("OVERRIDE", "Someone Else Entirely", "RB") == walker  # the override
+
+    (displaced,) = index.unmatched
+    assert displaced.name == "Kenneth Walker III"
+    assert "displaced by 'Someone Else Entirely'" in displaced.detail
+    assert "exception tier" in displaced.detail
+
+
+def test_a_worse_tier_never_takes_a_player_from_a_better_one(connection, empty_exceptions):
+    """The other direction: precedence, not merely last-write-wins."""
+    index = resolver(connection, empty_exceptions)
+    walker = player_id_of(connection, "Kenneth Walker III")
+
+    assert index.resolve("8135", "Kenneth Walker III", "RB") == walker  # tier 2, first
+    assert index.resolve(None, "Kenneth Walker", "RB") is None  # tier 4, loses
+    assert [record.name for record in index.unmatched] == ["Kenneth Walker"]
+
+
 # --- the report ----------------------------------------------------------------------
 
 

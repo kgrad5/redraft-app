@@ -97,7 +97,12 @@ class SleeperProjections:
         # `projections`' primary key is (snapshot_id, player_id, stat_key), so two records
         # with disjoint stat keys would otherwise merge into one player in silence.
         resolver = Resolver(connection, self.source, on_duplicate="report")
-        rows: list[dict[str, object]] = []
+        # Keyed by player_id, not appended: a record that outranks an earlier one takes
+        # the player (ADR-51), and writing its stats here discards the displaced record's.
+        # A list would keep both, and `projections`' primary key is
+        # (snapshot_id, player_id, stat_key) — two records with disjoint stat keys would
+        # merge into one player rather than collide.
+        rows: dict[int, list[dict[str, object]]] = {}
         for record in payload:
             components = component_stats(record["stats"])
             if not components.keys() - {GAMES_PLAYED}:
@@ -109,7 +114,7 @@ class SleeperProjections:
             )
             if player_id is None:
                 continue
-            rows.extend(
+            rows[player_id] = [
                 {
                     "snapshot_id": snapshot_id,
                     "player_id": player_id,
@@ -117,12 +122,13 @@ class SleeperProjections:
                     "value": value,
                 }
                 for stat_key, value in components.items()
-            )
+            ]
 
-        if not rows:
+        written = [row for player_rows in rows.values() for row in player_rows]
+        if not written:
             raise EmptyProjectionsError(
                 f"{len(payload)} records yielded no projections "
                 f"({len(resolver.unmatched)} named a player nothing could place)"
             )
-        connection.execute(INSERT_PROJECTION, rows)
-        return IngestResult(snapshot_id, len(rows), resolver.unmatched)
+        connection.execute(INSERT_PROJECTION, written)
+        return IngestResult(snapshot_id, len(written), resolver.unmatched)

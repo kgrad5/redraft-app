@@ -28,7 +28,7 @@ wording is wrong (ADR-49).
 """
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -57,6 +57,12 @@ SELECT_PLAYERS = text(
 
 ENTRY_FIELDS = ("source", "source_key", "full_name", "position", "note")
 
+# The tiers in priority order. A record's index here is the strength of its claim, which
+# is what settles two records claiming one player — the alternative is payload order,
+# and payload order is not a fact about who the player is (ADR-51).
+TIERS = ("exception", "crosswalk", "exact", "normalized")
+EXCEPTION, CROSSWALK, EXACT, NORMALIZED = range(len(TIERS))
+
 
 class ExceptionFileError(Exception):
     """`data/id_exceptions.yaml` is malformed, or an entry names a player nothing matches.
@@ -80,6 +86,14 @@ class DuplicateResolutionError(Exception):
     crosswalk id while a second, sharing its name and position, falls through to a name
     tier and lands on the same player.
     """
+
+
+@dataclass(frozen=True, slots=True)
+class _Claim:
+    """A player this run has placed, and what to report if something later outranks it."""
+
+    tier: int
+    record: Unmatched
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,7 +243,7 @@ class Resolver:
         )
         self._exceptions = self._targets(load_exceptions(exceptions_path))
 
-        self._claimed: dict[int, str] = {}
+        self._claimed: dict[int, _Claim] = {}
         self._unmatched: list[Unmatched] = []
 
     def _targets(self, entries: tuple[ExceptionEntry, ...]) -> dict[str, int]:
@@ -258,28 +272,31 @@ class Resolver:
             targets[entry.source_key] = self._by_exact[key][0]
         return targets
 
-    def _match(self, source_key: str | None, name: str, position: str) -> tuple[int | None, str]:
-        """The tiers, in order. Returns the player and which tier placed them."""
+    def _match(
+        self, source_key: str | None, name: str, position: str
+    ) -> tuple[int | None, int | None, str | None]:
+        """The tiers, in order: the player, the tier that placed them, and why not."""
         if source_key is not None and source_key in self._exceptions:
-            return self._exceptions[source_key], "exception"
+            return self._exceptions[source_key], EXCEPTION, None
         if source_key is not None and source_key in self._by_source_id:
-            return self._by_source_id[source_key], "crosswalk"
+            return self._by_source_id[source_key], CROSSWALK, None
 
         exact = (name, position)
         if exact in self._by_exact:
-            return self._by_exact[exact][0], "exact"
+            return self._by_exact[exact][0], EXACT, None
         if exact in self._exact_collisions:
-            return None, f"ambiguous: {' and '.join(self._exact_collisions[exact])}"
+            return None, None, f"ambiguous: {' and '.join(self._exact_collisions[exact])}"
 
         folded = (normalized(name), position)
         if folded in self._by_normalized:
-            return self._by_normalized[folded][0], "normalized"
+            return self._by_normalized[folded][0], NORMALIZED, None
         if folded in self._normalized_collisions:
             return (
                 None,
+                None,
                 f"ambiguous once folded: {' and '.join(self._normalized_collisions[folded])}",
             )
-        return None, ""
+        return None, None, None
 
     def resolve(
         self, source_key: str | None, name: str, position: str, *, rank: float | None = None
@@ -288,29 +305,49 @@ class Resolver:
 
         A None return is always accompanied by a record on `unmatched`, so an ingester
         cannot drop a player without the report saying so.
+
+        When two records claim one player, **the better tier wins regardless of which the
+        source listed first** (ADR-51). Resolving in tier order within a record is not
+        enough on its own: a flat first-come claim silently hands the player to whichever
+        record arrived first, so an operator's exception entry loses to an automatic match
+        and a crosswalk id loses to a name fold — which is the opposite of the precedence
+        the tiers exist to express, and makes the written rows depend on payload order.
+        A displaced record is reported, never dropped in silence.
         """
-        player_id, how = self._match(source_key, name, position)
+        player_id, tier, why = self._match(source_key, name, position)
+        record = Unmatched(self.source, source_key, name, position, rank, why)
         if player_id is None:
-            self._unmatched.append(
-                Unmatched(self.source, source_key, name, position, rank, how or None)
-            )
+            self._unmatched.append(record)
             return None
 
         held = self._claimed.get(player_id)
         if held is not None:
+            if tier < held.tier:
+                # This record outranks the incumbent, so it takes the player and the
+                # incumbent goes to the report. The caller keys its rows by player_id,
+                # so writing this one discards whatever the displaced record wrote.
+                self._unmatched.append(
+                    replace(
+                        held.record,
+                        detail=f"displaced by {name!r}, which matched on the {TIERS[tier]} tier",
+                    )
+                )
+                self._claimed[player_id] = _Claim(tier, record)
+                return player_id
+            # Same tier, or worse: nothing distinguishes them but arrival order, which is
+            # exactly what must not decide it.
             if self.on_duplicate == "raise":
                 raise DuplicateResolutionError(
-                    f"{name!r} and {held!r} both resolved to player_id {player_id}; "
-                    "one of them is matching on a name it does not own"
+                    f"{name!r} and {held.record.name!r} both resolved to player_id "
+                    f"{player_id} on the {TIERS[held.tier]} tier; one of them is matching "
+                    "on a name it does not own"
                 )
             self._unmatched.append(
-                Unmatched(
-                    self.source, source_key, name, position, rank, f"already placed as {held!r}"
-                )
+                replace(record, detail=f"already placed as {held.record.name!r}")
             )
             return None
 
-        self._claimed[player_id] = name
+        self._claimed[player_id] = _Claim(tier, record)
         return player_id
 
     @property

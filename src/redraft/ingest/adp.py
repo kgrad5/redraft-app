@@ -80,7 +80,10 @@ class YahooADP:
         # rollback takes the snapshot with it (ADR-46).
         resolver = Resolver(connection, self.source, on_duplicate="raise")
 
-        rows: list[dict[str, object]] = []
+        # Keyed by player_id, not appended: a record that outranks an earlier one takes
+        # the player (ADR-51), and writing it here discards the row the displaced record
+        # left behind. A list would keep both and violate `adp`'s primary key.
+        rows: dict[int, dict[str, object]] = {}
         for record in records:
             # `primary_position` rather than `display_position`: the two agree on every
             # record carrying a numeric ADP, but display_position is comma-joined for a
@@ -106,26 +109,24 @@ class YahooADP:
             player_id = resolver.resolve(record["player_id"], name, position, rank=adp)
             if player_id is None:
                 continue
-            rows.append(
-                {
-                    "snapshot_id": snapshot_id,
-                    "player_id": player_id,
-                    "source": self.source,
-                    "adp": adp,
-                    # Yahoo publishes no dispersion. FFC exists in this issue for it.
-                    "stdev": None,
-                    "high": None,
-                    "low": None,
-                    "times_drafted": None,
-                }
-            )
+            rows[player_id] = {
+                "snapshot_id": snapshot_id,
+                "player_id": player_id,
+                "source": self.source,
+                "adp": adp,
+                # Yahoo publishes no dispersion. FFC exists in this issue for it.
+                "stdev": None,
+                "high": None,
+                "low": None,
+                "times_drafted": None,
+            }
 
         if not rows:
             raise EmptyAdpError(
                 f"{len(records)} Yahoo records yielded no ADP rows "
                 f"({len(resolver.unmatched)} named a player nothing could place)"
             )
-        connection.execute(INSERT_ADP, rows)
+        connection.execute(INSERT_ADP, list(rows.values()))
         return IngestResult(snapshot_id, len(rows), resolver.unmatched)
 
 
@@ -156,7 +157,10 @@ class FfcADP:
         records = ffc.player_records(payload)
         resolver = Resolver(connection, self.source, on_duplicate="raise")
 
-        rows: list[dict[str, object]] = []
+        # Keyed by player_id, not appended: a record that outranks an earlier one takes
+        # the player (ADR-51), and writing it here discards the row the displaced record
+        # left behind. A list would keep both and violate `adp`'s primary key.
+        rows: dict[int, dict[str, object]] = {}
         for record in records:
             position = record["position"]
             if position not in ffc.FANTASY_POSITIONS:
@@ -170,23 +174,21 @@ class FfcADP:
             )
             if player_id is None:
                 continue
-            rows.append(
-                {
-                    "snapshot_id": snapshot_id,
-                    "player_id": player_id,
-                    "source": self.source,
-                    "adp": record["adp"],
-                    "stdev": record["stdev"],
-                    "high": record["high"],
-                    "low": record["low"],
-                    "times_drafted": record["times_drafted"],
-                }
-            )
+            rows[player_id] = {
+                "snapshot_id": snapshot_id,
+                "player_id": player_id,
+                "source": self.source,
+                "adp": record["adp"],
+                "stdev": record["stdev"],
+                "high": record["high"],
+                "low": record["low"],
+                "times_drafted": record["times_drafted"],
+            }
 
         if not rows:
             raise EmptyAdpError(
                 f"{len(records)} FFC records yielded no ADP rows "
                 f"({len(resolver.unmatched)} named a player nothing could place)"
             )
-        connection.execute(INSERT_ADP, rows)
+        connection.execute(INSERT_ADP, list(rows.values()))
         return IngestResult(snapshot_id, len(rows), resolver.unmatched)
