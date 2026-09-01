@@ -18,7 +18,8 @@ import httpx2
 import pytest
 import sqlalchemy as sa
 
-from redraft.ingest.adp import DuplicateResolutionError, EmptyAdpError, FfcADP, YahooADP
+from redraft.identity.resolve import DuplicateResolutionError
+from redraft.ingest.adp import EmptyAdpError, FfcADP, YahooADP
 from redraft.providers.ffc import PayloadShapeError as FfcPayloadShapeError
 from redraft.providers.yahoo import PayloadShapeError as YahooPayloadShapeError
 
@@ -184,7 +185,8 @@ FFC_NACUA = {
     "stdev": 0.9,
     "bye": 11,
 }
-# One of the seven suffix variants exact matching cannot place. Issue #8 closes it.
+# One of the seven suffix variants exact matching could not place. ADR-49 closes it:
+# FFC prints the suffix, `players` does not, and the fold makes the pair meet.
 FFC_SUFFIX = {
     "player_id": 5218,
     "name": "Kyle Pitts Sr.",
@@ -209,6 +211,23 @@ FFC_DEFENSE = {
     "low": 210,
     "stdev": 22.5,
     "bye": 7,
+}
+
+# No `players` row at all, so no tier can place him — resolution maps onto existing
+# rows and cannot invent one. This is what the residual looks like after issue #8, and
+# the coverage gap behind it is issue #43. Held out of FFC_PLAYERS so it changes no
+# other count; the empty-run test is the one that needs it.
+FFC_ABSENT = {
+    "player_id": 4321,
+    "name": "Tyreek Hill",
+    "position": "WR",
+    "team": "FA",
+    "adp": 129.2,
+    "times_drafted": 88,
+    "high": 101,
+    "low": 160,
+    "stdev": 14.2,
+    "bye": 10,
 }
 
 FFC_PLAYERS = [FFC_GIBBS, FFC_NACUA, FFC_SUFFIX, FFC_DEFENSE]
@@ -322,7 +341,8 @@ def test_ffc_writes_the_dispersion(connection):
     result, _ = ingest_ffc(connection)
 
     rows = written(connection)
-    assert result.rows_written == len(rows) == 2
+    # Three, not two: the suffix variant writes now that the name tiers exist (ADR-49).
+    assert result.rows_written == len(rows) == 3
     gibbs = rows["Jahmyr Gibbs"]
     assert gibbs["source"] == "ffc"
     assert (gibbs["adp"], gibbs["stdev"], gibbs["times_drafted"]) == (1.5, 0.7, 2120)
@@ -410,9 +430,12 @@ def test_ffc_matches_on_name_and_position_never_on_team(connection):
 
     rows = written(connection)
     assert rows["Puka Nacua"]["adp"] == 2.9
-    # The suffix variant is the one exact matching cannot place; issue #8 closes it.
-    assert "Kyle Pitts" not in rows
-    assert result.unresolved == 1
+    # And the suffix variant, which exact matching could not place. `players` holds him
+    # as "Kyle Pitts"; FFC prints "Kyle Pitts Sr." Measured live on 2026-08-31, the same
+    # fold takes FFC's whole 220-row response to zero unmatched.
+    assert rows["Kyle Pitts"]["adp"] == 77.4
+    assert result.unresolved == 0
+    assert result.unmatched == ()
 
 
 def test_two_sources_land_under_two_snapshots(connection):
@@ -429,7 +452,7 @@ def test_two_sources_land_under_two_snapshots(connection):
             "JOIN snapshots s USING (snapshot_id) GROUP BY 1, 2 ORDER BY 1"
         )
     ).all()
-    assert pairs == [("ffc", "ffc", 2), ("yahoo", "yahoo", 2)]
+    assert pairs == [("ffc", "ffc", 3), ("yahoo", "yahoo", 2)]
 
 
 def test_an_empty_run_raises_rather_than_reporting_success(connection):
@@ -437,8 +460,10 @@ def test_an_empty_run_raises_rather_than_reporting_success(connection):
     with pytest.raises(EmptyAdpError):
         ingest_yahoo(connection, yahoo_payload([SENTINEL, UNRESOLVED, DEFENSE]))
 
+    # FFC_SUFFIX resolves now, so the empty case needs a record nothing can place: a
+    # player with no `players` row, which is what the residual is made of.
     with pytest.raises(EmptyAdpError):
-        ingest_ffc(connection, ffc_payload([FFC_SUFFIX, FFC_DEFENSE]))
+        ingest_ffc(connection, ffc_payload([FFC_ABSENT, FFC_DEFENSE]))
 
 
 def test_a_reshaped_ffc_payload_is_heard_at_the_boundary(connection):

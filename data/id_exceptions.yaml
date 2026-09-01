@@ -1,0 +1,20 @@
+# The hand-maintained third tier of specs/draft-assistant.md §4.3, checked into the repo
+# so a change to player identity is reviewable in a diff (ADR-50).
+#
+# Each entry maps one source's own key to a player, and is consulted BEFORE the automatic
+# tiers — that is what lets it override a wrong match rather than only fill a gap.
+#
+#   - source: ffc              # sleeper | yahoo | ffc | nflverse
+#     source_key: "Tyreek Hill"  # the source's own identifier, as text. Yahoo's is the
+#                                # bare numeric id; FFC publishes no usable id, so its
+#                                # key is the name it prints.
+#     full_name: "Tyreek Hill"   # the target, spelled exactly as the `players` row is
+#     position: WR               # ...and its position. Not player_id: that surrogate is
+#                                # reissued on any rebuild, so a file naming one would
+#                                # silently point at a different player.
+#     note: "why automatic matching gets this one wrong"   # required
+#
+# The file ships with no entries. Measured 2026-08-31, all 28 unmatched records across
+# Sleeper, Yahoo and FFC named a player with no `players` row at all — an entry cannot
+# point at a row that does not exist, and the fix for those is issue #43. The report is
+# what fills this file.

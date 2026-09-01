@@ -7,9 +7,11 @@ what a component is —
 in this module is the part that touches the database: resolve each Sleeper player to an
 internal id, and write a row per stat.
 
-Resolution is tier one of specs/draft-assistant.md §4.3 and nothing else. `players.sleeper_id`
-is what issue #5 populated from the nflverse crosswalk; the name-matching and exception-file
-tiers are issue #8's. A record that does not resolve writes nothing and is counted, because
+Resolution is `redraft.identity` and all four of its tiers (ADR-49). It was
+`players.sleeper_id` alone until issue #8 (ADR-42), which left 37 of 555 component-bearing
+records unwritten and one of them — Mike Washington, whom `players` spells
+`Mike Washington Jr.` — inside the top 200. The name tiers close 10 of the 37 and that one.
+A record that still does not resolve writes nothing and is reported by name, because
 Sleeper's pool is deliberately wider than any roster and raising would mean this ingester
 never completes a run.
 """
@@ -18,19 +20,22 @@ import httpx2
 from sqlalchemy import Connection, text
 
 from redraft.http.client import Source, fetch_json
+from redraft.identity.resolve import Resolver
 from redraft.providers.base import IngestResult
 from redraft.providers.sleeper import (
     GAMES_PLAYED,
     PayloadShapeError,
     component_stats,
+    player_identity,
     projections_params,
     projections_url,
 )
 
-# sleeper_id is UNIQUE, so the mapping is injective and two Sleeper records can never
-# collide on one player. The NULL filter keeps a player issue #5 left without an id
-# from becoming a crosswalk entry keyed on nothing.
-SELECT_CROSSWALK = text("SELECT sleeper_id, player_id FROM players WHERE sleeper_id IS NOT NULL")
+# Orders the unmatched-player report and nothing else. It is never written: `adp` comes
+# from Yahoo and FFC alone (specs/draft-assistant.md Appendix A entry 9). Sleeper's 999.0
+# no-ADP sentinel is passed through as published rather than reinterpreted here — the
+# report names the source on every line, so a reader knows what scale it is on.
+RANKING_STAT = "adp_ppr"
 
 INSERT_PROJECTION = text(
     "INSERT INTO projections (snapshot_id, player_id, stat_key, value) "
@@ -88,16 +93,21 @@ class SleeperProjections:
                 f"expected an array of projection records, got {type(payload).__name__}"
             )
 
-        crosswalk = dict(connection.execute(SELECT_CROSSWALK).all())
+        # "report" rather than "raise": ADR-42 rejected run-aborting here, and
+        # `projections`' primary key is (snapshot_id, player_id, stat_key), so two records
+        # with disjoint stat keys would otherwise merge into one player in silence.
+        resolver = Resolver(connection, self.source, on_duplicate="report")
         rows: list[dict[str, object]] = []
-        unresolved = 0
         for record in payload:
             components = component_stats(record["stats"])
             if not components.keys() - {GAMES_PLAYED}:
                 continue
-            player_id = crosswalk.get(record["player_id"])
+            # After the component filter, so the 2,559 ADP shells never reach the report.
+            name, position = player_identity(record)
+            player_id = resolver.resolve(
+                record["player_id"], name, position, rank=record["stats"].get(RANKING_STAT)
+            )
             if player_id is None:
-                unresolved += 1
                 continue
             rows.extend(
                 {
@@ -112,7 +122,7 @@ class SleeperProjections:
         if not rows:
             raise EmptyProjectionsError(
                 f"{len(payload)} records yielded no projections "
-                f"({unresolved} named a player the crosswalk could not place)"
+                f"({len(resolver.unmatched)} named a player nothing could place)"
             )
         connection.execute(INSERT_PROJECTION, rows)
-        return IngestResult(snapshot_id, len(rows), unresolved)
+        return IngestResult(snapshot_id, len(rows), resolver.unmatched)

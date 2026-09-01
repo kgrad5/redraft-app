@@ -143,14 +143,3 @@ class DraftEvent(Base):
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.clock_timestamp()
     )
-
-
-class IdExceptions(Base):
-    """The hand-maintained crosswalk stragglers of specs/draft-assistant.md §4.3."""
-
-    __tablename__ = "id_exceptions"
-
-    source: Mapped[str] = mapped_column(Text, primary_key=True)
-    source_key: Mapped[str] = mapped_column(Text, primary_key=True)
-    player_id: Mapped[int] = mapped_column(BigInteger, _player_fk())
-    note: Mapped[str | None] = mapped_column(Text)

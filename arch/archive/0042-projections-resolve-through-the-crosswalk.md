@@ -1,6 +1,6 @@
 # ADR-42 — Sleeper projections resolve through the nflverse crosswalk alone
 
-**Status:** Accepted · 2026-08-31 · issue #6
+**Status:** Superseded by ADR-49 · 2026-08-31 · issue #6
 
 **Context**
 `projections.player_id` is a NOT NULL foreign key to `players` (ADR-29), so every Sleeper
