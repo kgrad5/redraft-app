@@ -259,6 +259,11 @@ def test_unresolved_sleeper_id_writes_nothing_and_is_counted(connection):
 
     assert result.unresolved == 1
     assert not [sid for sid, _ in written(connection) if sid == UNRESOLVED["player_id"]]
+    # The count is derived from the records, so the tripwire issue #9 reads and the
+    # report an operator reads cannot disagree (ADR-49). Asserted at a non-zero value:
+    # both sides are 0 on a clean run, where this would hold whether or not it was true.
+    assert result.unresolved == len(result.unmatched) == 1
+    assert result.unmatched[0].name == "Tyreek Hill"
 
 
 def test_a_name_the_crosswalk_misses_still_resolves_through_the_fold(connection):

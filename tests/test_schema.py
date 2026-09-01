@@ -149,9 +149,12 @@ def test_downgrade_refuses_while_undo_rows_exist(migrated, alembic_config, engin
     beyond DELETE. The guard runs before any DDL, so a refusal changes nothing.
 
     Targets the revision below the guarded migration rather than `-1`. `-1` meant "the
-    event_type migration" only while that was head; issue #8 added one on top, and a
-    relative target silently started testing the new migration's downgrade instead — it
-    passed, which is how a guard stops being tested without anyone noticing.
+    event_type migration" only while that was head; issue #8 added one on top, so the
+    relative target began exercising the *new* migration's downgrade instead. That was
+    caught here only because the new downgrade raises nothing and the test failed
+    outright. A migration whose downgrade happened to raise its own RuntimeError would
+    have kept this green while testing something else entirely — which is the failure
+    naming the revision prevents, and the reason not to rely on having been lucky.
 
     Cleans up after itself: leaving the row behind would break test_downgrade_then_upgrade.
     """

@@ -223,6 +223,11 @@ def test_a_name_two_players_share_resolves_to_neither_and_says_so(connection, em
 
     assert index.resolve(None, "Adrian Peterson", "RB") is None
     assert [record.name for record in index.unmatched] == ["Adrian Peterson"]
+    # Naming the collision is the point. "unresolved" alone sends whoever reads the
+    # report looking for a player who is in fact present twice, which is a different
+    # problem with a different fix.
+    (record,) = index.unmatched
+    assert record.detail == "ambiguous: Adrian Peterson [MIN] and Adrian Peterson [CHI]"
 
 
 def test_a_fold_that_would_collide_resolves_to_neither(connection, empty_exceptions):
@@ -231,7 +236,10 @@ def test_a_fold_that_would_collide_resolves_to_neither(connection, empty_excepti
     index = resolver(connection, empty_exceptions)
 
     assert index.resolve(None, "Marvin Harrison Sr.", "WR") is None
-    assert len(index.unmatched) == 1
+    (record,) = index.unmatched
+    assert record.detail == (
+        "ambiguous once folded: Marvin Harrison [ARI] and Marvin Harrison Jr. [ARI]"
+    )
 
 
 def test_digits_survive_normalization(connection):
@@ -325,16 +333,18 @@ def test_yahoo_id_is_never_used_as_a_join_key():
     essentially every player drafted since 2021. The column this repo joins on is
     `yahoo_num_id`, which nflverse supplies; the two differ by one underscore.
 
-    Scoped to the modules that resolve identity and the ones that read Sleeper.
-    `redraft.ingest.players` is deliberately not among them: it reads `yahoo_id` from
-    nflverse's roster CSV, which is *where `yahoo_num_id` comes from* and the one
-    legitimate use in the repo.
+    Scans all of `src/redraft/` with exactly one exemption, named rather than implied:
+    `redraft.ingest.players` reads `yahoo_id` from nflverse's roster CSV, which is *where
+    `yahoo_num_id` comes from* and the one legitimate use in the repo. Scanning the whole
+    tree rather than a hand-picked list matters most for `ingest/adp.py` and
+    `providers/yahoo.py` — the two modules a future change is likeliest to reach for a
+    Yahoo id from, and the two a list written today would forget to add.
     """
+    exempt = {REPO_ROOT / "src" / "redraft" / "ingest" / "players.py"}
     guarded = [
-        *sorted((REPO_ROOT / "src" / "redraft" / "identity").rglob("*.py")),
-        REPO_ROOT / "src" / "redraft" / "providers" / "sleeper.py",
-        REPO_ROOT / "src" / "redraft" / "ingest" / "projections.py",
+        path for path in sorted((REPO_ROOT / "src" / "redraft").rglob("*.py")) if path not in exempt
     ]
+    assert len(guarded) > 10, "the scan found almost nothing; the path is probably wrong"
     offenders = [
         str(path.relative_to(REPO_ROOT))
         for path in guarded
@@ -490,6 +500,8 @@ def test_two_records_claiming_one_player_are_reported_where_a_raise_would_abort_
     assert index.resolve(None, "Kenneth Walker", "RB") is None
     assert first == player_id_of(connection, "Kenneth Walker III")
     assert [record.name for record in index.unmatched] == ["Kenneth Walker"]
+    (record,) = index.unmatched
+    assert record.detail == "already placed as 'Kenneth Walker III'"
 
 
 # --- the report ----------------------------------------------------------------------
