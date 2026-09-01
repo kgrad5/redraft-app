@@ -35,6 +35,11 @@ FIXTURE_PLAYERS = [
     {"full_name": "Ashton Jeanty", "team": "LV", "position": "RB", "yahoo_num_id": None},
     {"full_name": "Puka Nacua", "team": "LA", "position": "WR", "yahoo_num_id": 33474},
     {"full_name": "Kyle Pitts", "team": "ATL", "position": "TE", "yahoo_num_id": 33418},
+    # Two players under one (full_name, position). Nothing in either source names them,
+    # so they change no other count — they exist so the name tier's ambiguity rule is
+    # observable. `yahoo_num_id` is UNIQUE, so both carry NULL.
+    {"full_name": "Adrian Peterson", "team": "MIN", "position": "RB", "yahoo_num_id": None},
+    {"full_name": "Adrian Peterson", "team": "CHI", "position": "RB", "yahoo_num_id": None},
 ]
 
 # --- Yahoo ---------------------------------------------------------------------------
@@ -509,6 +514,26 @@ def test_an_unrecognised_adp_value_stops_the_run(connection):
 
     with pytest.raises(YahooPayloadShapeError, match="N/A"):
         ingest_yahoo(connection, yahoo_payload([surprise]))
+
+
+def test_a_name_two_players_share_resolves_to_neither(connection):
+    """The other direction of ambiguity, and the opposite resolution.
+
+    `DuplicateResolutionError` covers two *source records* landing on one player. This
+    is one *name key* held by two `players` rows, where picking whichever row came back
+    last would attach an ADP to an arbitrary player and never say so. The pair is
+    dropped from the name index instead, so the record reads as unresolved and issue #8
+    inherits it.
+    """
+    ambiguous = dict(UNRESOLVED)
+    ambiguous["name"] = {"full": "Adrian Peterson"}
+    ambiguous["display_position"] = ambiguous["primary_position"] = "RB"
+
+    result, _ = ingest_yahoo(connection, yahoo_payload([GIBBS, ambiguous]))
+
+    assert result.rows_written == 1
+    assert result.unresolved == 1
+    assert "Adrian Peterson" not in written(connection)
 
 
 @pytest.mark.parametrize("field", ["adp", "stdev", "times_drafted", "position"])

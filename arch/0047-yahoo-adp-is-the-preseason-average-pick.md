@@ -11,10 +11,13 @@ is unrecorded. Measured 2026-08-31: all 1,195 records carry a `draft_analysis` o
 literal string `"-"`.
 
 **Decision**
-`adp.adp` is `preseason_average_pick`, the field issue #7's verification names. A record whose
-`preseason_average_pick` does not parse as a float writes no row and is **not** counted as
-unresolved. `adp.stdev`, `high`, `low` and `times_drafted` stay NULL on Yahoo rows — Yahoo publishes
-no dispersion, which is the entire reason FFC is ingested.
+`adp.adp` is `preseason_average_pick`, the field issue #7's verification names. A record carrying
+the `"-"` sentinel writes no row and is **not** counted as unresolved. Any *other* unparseable
+value stops the run: `"-"` is the only non-numeric value the live pool holds, so a second one is a
+shape change rather than a missing ADP, and swallowing it would leave the board quietly short while
+`unresolved` — the tripwire built for exactly that — never moved. `adp.stdev`, `high`, `low` and
+`times_drafted` stay NULL on Yahoo rows — Yahoo publishes no dispersion, which is the entire reason
+FFC is ingested.
 
 **Consequences**
 - **`"-"` is a string where a number belongs, and it is on 81% of the pool.** A parser that assumes
@@ -49,3 +52,10 @@ no dispersion, which is the entire reason FFC is ingested.
 - **Count the `"-"` records as unresolved.** Rejected: they resolve perfectly well, they simply have
   no ADP. Putting 969 of them on a tripwire meant to show which players the board is missing is
   ADR-42's ADP-shell failure exactly.
+- **Skip every unparseable value rather than only the sentinel**, which is what issue #7's approved
+  plan specified and what this entry said when it was approved. Rejected on review, before merge: it
+  makes a renamed sentinel — or a thousands separator, or a nested object — indistinguishable from a
+  player Yahoo publishes no ADP for, and `unresolved` cannot catch the difference because such a
+  record resolves perfectly well. The board would simply be short. ADR-41 took the same line for
+  Sleeper's stat keys, and for the same reason: the invariant should hold by construction rather
+  than by the source's naming discipline.
