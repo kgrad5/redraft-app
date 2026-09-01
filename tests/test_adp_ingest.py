@@ -18,7 +18,7 @@ import httpx2
 import pytest
 import sqlalchemy as sa
 
-from redraft.ingest.adp import EmptyAdpError, FfcADP, YahooADP
+from redraft.ingest.adp import DuplicateResolutionError, EmptyAdpError, FfcADP, YahooADP
 from redraft.providers.ffc import PayloadShapeError as FfcPayloadShapeError
 from redraft.providers.yahoo import PayloadShapeError as YahooPayloadShapeError
 
@@ -439,3 +439,84 @@ def test_an_empty_run_raises_rather_than_reporting_success(connection):
 def test_a_reshaped_ffc_payload_is_heard_at_the_boundary(connection):
     with pytest.raises(FfcPayloadShapeError):
         ingest_ffc(connection, {"status": "Success", "meta": {}})
+
+
+# --- what the review found -----------------------------------------------------------
+#
+# None of the four below is reachable against today's live payloads: neither source
+# carries a duplicate (name, position), no comma-joined position carries an ADP, every
+# FFC row is complete, and `"-"` is the only non-numeric ADP Yahoo sends. They are here
+# because each one's failure mode is a whole lost run or a quietly missing player, and
+# because "not reachable today" is a fact about Yahoo's roster, not about this code.
+
+
+@pytest.mark.parametrize(
+    "envelope", [[], "error", None, 42], ids=["list", "string", "null", "number"]
+)
+def test_a_non_object_envelope_raises_a_shape_error_not_an_attribute_error(connection, envelope):
+    """A Yahoo error page puts a string or a list where the league goes.
+
+    `.get` on either is an AttributeError, which no caller can catch as a shape problem
+    — and shape problems are the entire reason this boundary raises its own exception.
+    """
+    with pytest.raises(YahooPayloadShapeError):
+        ingest_yahoo(connection, {"fantasy_content": envelope})
+
+
+def test_a_players_element_that_wraps_no_player_raises_a_shape_error(connection):
+    payload = {"fantasy_content": {"league": {"players": [{"not_a_player": {}}]}}}
+    with pytest.raises(YahooPayloadShapeError):
+        ingest_yahoo(connection, payload)
+
+
+def test_two_records_resolving_to_one_player_name_both_rather_than_colliding(connection):
+    """The id tier and the name tier can land on the same player.
+
+    Gibbs resolves on yahoo_num_id; the impostor shares his name and position, carries
+    an id `players` has never seen, and so falls through to the name tier onto the same
+    row. Left alone that is an IntegrityError from an executemany naming neither record,
+    on a transaction whose rollback then discards the snapshot too (ADR-38).
+    """
+    impostor = dict(GIBBS, player_key="470.p.999999", player_id="999999")
+    impostor["draft_analysis"] = dict(GIBBS["draft_analysis"], preseason_average_pick="240.0")
+
+    with pytest.raises(DuplicateResolutionError, match="Jahmyr Gibbs"):
+        ingest_yahoo(connection, yahoo_payload([GIBBS, impostor]))
+
+    assert connection.execute(COUNT_ROWS).scalar_one() == 0
+
+
+def test_a_multi_eligibility_position_is_not_dropped_before_the_counter(connection):
+    """display_position is comma-joined for a multi-eligibility player.
+
+    Matching on it would drop the record ahead of the `unresolved` count — a player with
+    a real ADP gone from the board with no signal anywhere, which is the failure
+    specs/draft-assistant.md §4.3 names. primary_position is single-valued on every
+    record.
+    """
+    flex = dict(INJURED, display_position="RB,TE")
+    result, _ = ingest_yahoo(connection, yahoo_payload([flex]))
+
+    assert result.rows_written == 1
+    assert written(connection)["Ashton Jeanty"]["adp"] == 16.9
+
+
+def test_an_unrecognised_adp_value_stops_the_run(connection):
+    """`"-"` is the only non-numeric value the live pool holds, so a second one is a
+    shape change, not a missing ADP — and `unresolved` would not move for it."""
+    surprise = dict(GIBBS)
+    surprise["draft_analysis"] = dict(GIBBS["draft_analysis"], preseason_average_pick="N/A")
+
+    with pytest.raises(YahooPayloadShapeError, match="N/A"):
+        ingest_yahoo(connection, yahoo_payload([surprise]))
+
+
+@pytest.mark.parametrize("field", ["adp", "stdev", "times_drafted", "position"])
+def test_an_ffc_row_missing_a_field_is_refused_at_the_boundary(connection, field):
+    """Otherwise a KeyError from inside the write loop, or — for a null `adp`, which the
+    column rejects — an IntegrityError at the insert. Both land after the snapshot."""
+    broken = dict(FFC_GIBBS)
+    broken[field] = None
+
+    with pytest.raises(FfcPayloadShapeError, match=field):
+        ingest_ffc(connection, ffc_payload([broken]))

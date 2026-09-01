@@ -28,6 +28,10 @@ ADP_URL = "https://fantasyfootballcalculator.com/api/v1/adp/ppr"
 # (specs/draft-assistant.md §2.2).
 FANTASY_POSITIONS = ("QB", "RB", "WR", "TE")
 
+# What the ingester reads off every row. `adp` is here because the column is NOT NULL,
+# and the dispersion four because they are the only reason this source is ingested.
+REQUIRED_KEYS = ("name", "position", "adp", "stdev", "high", "low", "times_drafted")
+
 
 class PayloadShapeError(Exception):
     """The response is not the object-with-a-players-array this source returns."""
@@ -49,6 +53,11 @@ def player_records(payload: Any) -> list[dict[str, Any]]:
     Heard at the boundary rather than downstream: a payload missing the key would
     otherwise read as a source with no players in it, which is indistinguishable from a
     day FFC published nothing.
+
+    Every row is checked for the fields the ingester reads, because the alternative is a
+    `KeyError` from the middle of a write loop or — for a null `adp`, which the column
+    rejects — an `IntegrityError` at the insert. Both land after the snapshot row is
+    written, so ADR-38's rollback takes the payload that would explain them.
     """
     if not isinstance(payload, dict):
         raise PayloadShapeError(f"expected an object, got {type(payload).__name__}")
@@ -58,4 +67,13 @@ def player_records(payload: Any) -> list[dict[str, Any]]:
             f"expected a 'players' array, got {type(players).__name__}; "
             f"top-level keys are {sorted(payload)}"
         )
+    for record in players:
+        if not isinstance(record, dict):
+            raise PayloadShapeError(f"expected player objects, got {type(record).__name__}")
+        missing = [key for key in REQUIRED_KEYS if record.get(key) is None]
+        if missing:
+            raise PayloadShapeError(
+                f"player {record.get('name', '?')!r} is missing {missing}; "
+                "every row of the live response carries all of them"
+            )
     return players

@@ -97,7 +97,13 @@ def player_records(payload: Any) -> list[dict[str, Any]]:
             f"no {ENVELOPE_KEY!r} envelope; got {type(payload).__name__}"
             + (f" with keys {sorted(payload)}" if isinstance(payload, dict) else "")
         )
-    league = payload[ENVELOPE_KEY].get("league")
+    envelope = payload[ENVELOPE_KEY]
+    # Checked rather than assumed: a Yahoo error page puts a string or a list here,
+    # and `.get` on either is an AttributeError the caller cannot catch as a shape
+    # problem — which is the whole reason this function raises its own exception.
+    if not isinstance(envelope, dict):
+        raise PayloadShapeError(f"{ENVELOPE_KEY!r} holds {type(envelope).__name__}, not an object")
+    league = envelope.get("league")
     if not isinstance(league, dict):
         raise PayloadShapeError(
             f"expected a keyed 'league' object, got {type(league).__name__} — "
@@ -106,7 +112,14 @@ def player_records(payload: Any) -> list[dict[str, Any]]:
     players = league.get("players")
     if not isinstance(players, list):
         raise PayloadShapeError(f"expected a 'players' array, got {type(players).__name__}")
-    return [entry["player"] for entry in players]
+    records = []
+    for entry in players:
+        if not isinstance(entry, dict) or "player" not in entry:
+            raise PayloadShapeError(
+                f"expected each element to wrap a 'player', got {type(entry).__name__}"
+            )
+        records.append(entry["player"])
+    return records
 
 
 def adp_value(record: dict[str, Any]) -> float | None:
@@ -115,6 +128,12 @@ def adp_value(record: dict[str, Any]) -> float | None:
     `"-"` is the common case rather than the exceptional one, so it is returned as
     "no ADP" instead of raising. A record without one is not a player the crosswalk
     failed to place, and ADR-47 keeps it off the `unresolved` count for that reason.
+
+    Any *other* unparseable value stops the run instead, which is ADR-41's reflex for
+    Sleeper's stat keys applied here: `"-"` is the only non-numeric value the live pool
+    contains, so a second one is a shape change rather than a missing ADP. Swallowing it
+    would turn that change into a board quietly short of players, and `unresolved` — the
+    tripwire built for exactly that — would not move, because the record resolved fine.
     """
     raw = record["draft_analysis"].get(ADP_KEY)
     if raw is None or raw == NO_ADP:
@@ -122,4 +141,7 @@ def adp_value(record: dict[str, Any]) -> float | None:
     try:
         return float(raw)
     except TypeError, ValueError:
-        return None
+        raise PayloadShapeError(
+            f"{record['name']['full']} carries {ADP_KEY}={raw!r}, which is neither a "
+            f"number nor the {NO_ADP!r} sentinel; classify it before ingesting"
+        ) from None

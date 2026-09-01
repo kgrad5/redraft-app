@@ -37,6 +37,22 @@ INSERT_ADP = text(
 )
 
 
+class DuplicateResolutionError(Exception):
+    """Two records from one source resolved to the same player.
+
+    ADR-46 anticipates this landing on `adp`'s primary key rather than silently
+    overwriting, and it would — but as an `IntegrityError` raised by an executemany
+    that names neither record, on a transaction whose rollback then takes the snapshot
+    with it (ADR-38). The payload that would say which two collided is gone at exactly
+    the moment it is wanted. Catching it before the insert costs one dict and turns the
+    whole-run failure into a message naming both names.
+
+    It is reachable because resolution has two tiers: one record can match on
+    `yahoo_num_id` while a second, sharing its name and position, falls through to the
+    name tier and lands on the same player. Neither source contains such a pair today.
+    """
+
+
 class EmptyAdpError(Exception):
     """The fetch succeeded but nothing survived to write.
 
@@ -126,9 +142,17 @@ class YahooADP:
         index = _player_index(connection)
 
         rows: list[dict[str, object]] = []
+        claimed: dict[int, str] = {}
         unresolved = 0
         for record in records:
-            position = record["display_position"]
+            # `primary_position` rather than `display_position`: the two agree on every
+            # record carrying a numeric ADP, but display_position is comma-joined for a
+            # multi-eligibility player ("RB,TE"), which matches no single position and
+            # would drop that player before the unresolved counter ever sees him. A
+            # silently dropped player is a player missing from the board
+            # (specs/draft-assistant.md §4.3), and this is the one skip path that could
+            # do it. Eight records are comma-joined today; none carries an ADP.
+            position = record["primary_position"]
             # Before resolution, not after: `players` holds QB/RB/WR/TE only, so 42 of
             # these can never resolve and counting them would peg the tripwire at 44 on
             # a healthy run (ADR-46).
@@ -138,10 +162,17 @@ class YahooADP:
             # Not a missing player — a player Yahoo publishes no ADP for (ADR-47).
             if adp is None:
                 continue
-            player_id = index.resolve(int(record["player_id"]), record["name"]["full"], position)
+            name = record["name"]["full"]
+            player_id = index.resolve(int(record["player_id"]), name, position)
             if player_id is None:
                 unresolved += 1
                 continue
+            if player_id in claimed:
+                raise DuplicateResolutionError(
+                    f"{name!r} and {claimed[player_id]!r} both resolved to player_id "
+                    f"{player_id}; one of them is matching on a name it does not own"
+                )
+            claimed[player_id] = name
             rows.append(
                 {
                     "snapshot_id": snapshot_id,
@@ -193,6 +224,7 @@ class FfcADP:
         index = _player_index(connection)
 
         rows: list[dict[str, object]] = []
+        claimed: dict[int, str] = {}
         unresolved = 0
         for record in records:
             position = record["position"]
@@ -205,6 +237,13 @@ class FfcADP:
             if player_id is None:
                 unresolved += 1
                 continue
+            if player_id in claimed:
+                raise DuplicateResolutionError(
+                    f"{record['name']!r} and {claimed[player_id]!r} both resolved to "
+                    f"player_id {player_id}; one of them is matching on a name it does "
+                    "not own"
+                )
+            claimed[player_id] = record["name"]
             rows.append(
                 {
                     "snapshot_id": snapshot_id,
