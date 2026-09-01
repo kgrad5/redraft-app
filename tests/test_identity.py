@@ -227,7 +227,12 @@ def test_a_name_two_players_share_resolves_to_neither_and_says_so(connection, em
     # report looking for a player who is in fact present twice, which is a different
     # problem with a different fix.
     (record,) = index.unmatched
+    # In player_id order, which the pool query pins. Unordered, Postgres may hand back
+    # the same two rows either way round, and this line would differ between runs on
+    # unchanged data — which makes two runs' reports undiffable.
     assert record.detail == "ambiguous: Adrian Peterson [MIN] and Adrian Peterson [CHI]"
+    assert index.resolve(None, "Adrian Peterson", "RB") is None
+    assert index.unmatched[1].detail == record.detail, "the same collision must read the same"
 
 
 def test_a_fold_that_would_collide_resolves_to_neither(connection, empty_exceptions):
@@ -434,6 +439,21 @@ def test_an_exception_naming_two_players_raises(connection, tmp_path):
             '- source: sleeper\n  source_key: "1"\n  full_name: "Kyle Pitts"\n  position: TE\n',
             "note",
             id="missing-note",
+        ),
+        # A key with nothing after the colon is YAML null, not "". `str(None)` is the
+        # truthy string "None", so this used to sail through and become the key "None" —
+        # an entry matching no record from any source, inert forever, saying nothing.
+        pytest.param(
+            '- source: sleeper\n  source_key:\n  full_name: "Kyle Pitts"\n'
+            '  position: TE\n  note: "n"\n',
+            "source_key",
+            id="null-source-key",
+        ),
+        pytest.param(
+            '- source: sleeper\n  source_key: "1"\n  full_name: "Kyle Pitts"\n'
+            "  position: TE\n  note:\n",
+            "note",
+            id="null-note",
         ),
         pytest.param(
             '- source: sleeper\n  source_key: "1"\n  full_name: "Kyle Pitts"\n'

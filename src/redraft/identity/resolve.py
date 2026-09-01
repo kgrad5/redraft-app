@@ -51,8 +51,14 @@ EXCEPTIONS_PATH = Path(__file__).resolve().parents[3] / "data" / "id_exceptions.
 # ~24% populated and null for essentially every player drafted since 2021.
 SATELLITE: dict[Source, str] = {"sleeper": "sleeper_id", "yahoo": "yahoo_num_id"}
 
+# Ordered so the report reads the same twice. `_index` records a collision in row
+# arrival order, and an unordered SELECT lets Postgres return the same two rows either
+# way round — so the ambiguity line an operator reads would change between runs on
+# unchanged data, and two runs' reports could not be diffed. Resolution is unaffected;
+# only what the text says first.
 SELECT_PLAYERS = text(
-    "SELECT player_id, full_name, team, position, sleeper_id, yahoo_num_id FROM players"
+    "SELECT player_id, full_name, team, position, sleeper_id, yahoo_num_id FROM players "
+    "ORDER BY player_id"
 )
 
 ENTRY_FIELDS = ("source", "source_key", "full_name", "position", "note")
@@ -141,7 +147,17 @@ def load_exceptions(path: Path) -> tuple[ExceptionEntry, ...]:
     for position_in_file, item in enumerate(raw, start=1):
         if not isinstance(item, dict):
             raise ExceptionFileError(f"entry {position_in_file} is not a mapping")
-        missing = [field for field in ENTRY_FIELDS if not str(item.get(field, "")).strip()]
+        # `is None` first, because `str(None)` is the truthy string "None" and would sail
+        # through the blank check below. A null `source_key` then becomes the key "None",
+        # which matches no record from any source, and `_targets` validates only the
+        # target — so the entry is inert forever and nothing says so. That silent no-op is
+        # the failure this exception exists to prevent, and YAML makes it easy to write:
+        # a key left with nothing after the colon is null, not "".
+        missing = [
+            field
+            for field in ENTRY_FIELDS
+            if item.get(field) is None or not str(item[field]).strip()
+        ]
         if missing:
             raise ExceptionFileError(
                 f"entry {position_in_file} is missing {', '.join(missing)}; "
