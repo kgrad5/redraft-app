@@ -36,9 +36,12 @@ displacing record discards the rows the displaced one left.
 - ADR-50's "the file is consulted before the automatic tiers" now holds where it is
   actually tested — against a competing record, rather than only against an empty field.
 - **This narrows ADR-46's reflex, which `adp` inherited: it raised on any two records
-  resolving to one player, and now raises only when neither outranks the other.** A
-  differing-tier collision is no longer an error, because the tiers say which record is
-  right. Without this an exception entry would abort a Yahoo run rather than override.
+  resolving to one player, and now stays silent when the arriving record outranks the
+  incumbent.** That case is no longer an error, because the tiers say which record is
+  right — without it an exception entry would abort a Yahoo run rather than override. The
+  narrowing is one-directional, and this bullet first claimed more than the Decision above
+  grants: a collision the arriving record does *not* win, differing tiers included, is
+  still `DuplicateResolutionError` for `adp`.
 - The written rows no longer depend on the order a source lists its records in. No row
   changes today: zero contended claims across Sleeper, Yahoo and FFC.
 - The ingesters accumulate into a dict keyed by `player_id` rather than a list. For
