@@ -124,6 +124,11 @@ class SleeperProjections:
                 for stat_key, value in components.items()
             ]
 
+        # A player two records reached on one tier belongs to neither (ADR-52), and
+        # `resolve` had already handed him to the first by the time the second arrived.
+        for withdrawn in resolver.withdrawn:
+            rows.pop(withdrawn, None)
+
         written = [row for player_rows in rows.values() for row in player_rows]
         if not written:
             raise EmptyProjectionsError(

@@ -284,6 +284,41 @@ def test_a_name_the_crosswalk_misses_still_resolves_through_the_fold(connection)
     assert [record.name for record in result.unmatched] == ["Tyreek Hill"]
 
 
+def test_two_records_folding_onto_one_player_write_nothing_for_him(connection):
+    """ADR-52 through the ingester: the rows have to actually not be written.
+
+    `resolve` hands the player to the first of the two, because the second has not
+    arrived yet, so the ingester keys its rows by player_id and drops the withdrawn
+    ones before the insert. Without that sweep the first record's stats would still
+    be written on a coin toss.
+    """
+    twin_a = {
+        "player_id": "77771",
+        "player": {"first_name": "Mike", "last_name": "Washington", "position": "RB"},
+        "stats": {"rush_yd": 100.0, "gp": 17.0},
+    }
+    # `Washington Sr.`, not `Washington Jr.`: the latter matches the `players` row
+    # exactly, which is a better tier and correctly displaces the fold rather than tying
+    # with it. Both of these reach him only by the fold, which is the tie.
+    twin_b = {
+        "player_id": "77772",
+        "player": {"first_name": "Mike", "last_name": "Washington Sr.", "position": "RB"},
+        "stats": {"rec_yd": 200.0, "gp": 17.0},
+    }
+    result, _ = ingest(connection, [MAHOMES, twin_a, twin_b])
+
+    rows = written(connection)
+    assert result.rows_written == MAHOMES_COMPONENTS
+    # Nothing for the contested player, from either record — and in particular not
+    # `rush_yd` from the one that happened to be listed first.
+    assert not [key for key in rows if key[0] is None]
+    assert [record.name for record in result.unmatched] == [
+        "Mike Washington",
+        "Mike Washington Sr.",
+    ]
+    assert result.unresolved == 2
+
+
 def test_adp_shell_writes_nothing_and_is_not_counted_unresolved(connection):
     """A record whose only component is gp is not a projection. The unresolvable
     shell must not inflate `unresolved` either — a tripwire at 2,243 is not one."""

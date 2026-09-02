@@ -585,6 +585,52 @@ def test_a_worse_tier_never_takes_a_player_from_a_better_one(connection, empty_e
     assert [record.name for record in index.unmatched] == ["Kenneth Walker"]
 
 
+def test_two_records_reaching_one_player_on_one_tier_leave_him_to_neither(
+    connection, empty_exceptions
+):
+    """The pool-side ambiguity rule, applied to records (ADR-52).
+
+    `_index` already refuses to pick when two *players* share a key, because picking
+    whichever row came back last is the silent wrongness specs/draft-assistant.md §4.3
+    exists to prevent. Two *records* reaching one player on one tier is the same
+    coin toss seen from the other side: reporting only the loser would leave the
+    winner's rows written, and the winner is exactly as likely to be the wrong player.
+    """
+    index = resolver(connection, empty_exceptions)
+    walker = player_id_of(connection, "Kenneth Walker III")
+
+    assert index.resolve(None, "Kenneth Walker", "RB") == walker
+    assert index.resolve(None, "Kenneth Walker Jr.", "RB") is None
+
+    assert index.withdrawn == frozenset({walker})
+    assert [record.name for record in index.unmatched] == [
+        "Kenneth Walker",
+        "Kenneth Walker Jr.",
+    ]
+    for record in index.unmatched:
+        assert record.detail == (
+            "withdrawn: more than one record matched this player on the normalized tier"
+        )
+
+
+def test_a_positive_identification_settles_a_player_an_earlier_tie_withdrew(
+    connection, empty_exceptions
+):
+    """A withdrawal is not permanent. The tie says arrival order cannot choose; a
+    crosswalk id is not arrival order, so it takes the player and clears the
+    withdrawal — otherwise one ambiguous pair would bar a positively identified
+    record from ever being written."""
+    index = resolver(connection, empty_exceptions)
+    walker = player_id_of(connection, "Kenneth Walker III")
+
+    index.resolve(None, "Kenneth Walker", "RB")
+    index.resolve(None, "Kenneth Walker Jr.", "RB")
+    assert index.withdrawn == frozenset({walker})
+
+    assert index.resolve("8135", "Kenneth Walker III", "RB") == walker
+    assert index.withdrawn == frozenset()
+
+
 # --- the report ----------------------------------------------------------------------
 
 
