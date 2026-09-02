@@ -19,6 +19,7 @@ import httpx2
 import pytest
 import sqlalchemy as sa
 
+from redraft.identity.report import unmatched_report
 from redraft.ingest.projections import EmptyProjectionsError, SleeperProjections
 from redraft.providers.sleeper import (
     PayloadShapeError,
@@ -264,6 +265,21 @@ def test_unresolved_sleeper_id_writes_nothing_and_is_counted(connection):
     # both sides are 0 on a clean run, where this would hold whether or not it was true.
     assert result.unresolved == len(result.unmatched) == 1
     assert result.unmatched[0].name == "Tyreek Hill"
+
+
+def test_a_real_run_renders_its_own_unmatched_report(connection):
+    """The renderer over an `IngestResult`, not over records built by hand.
+
+    Nothing in `src/` calls `ingest()` yet — the daily job is issue #9 — so this is the
+    only place the two halves meet: an ingester puts what it could not place on the
+    seam, and the report turns those records into the text an operator actually reads.
+    Testing each side alone would leave the join unproven until #9 wires it up.
+    """
+    result, _ = ingest(connection)
+
+    assert unmatched_report(result.unmatched) == (
+        "unmatched players: 1 — sleeper 1\n   227.2  sleeper  WR  Tyreek Hill  [3321]"
+    )
 
 
 def test_a_name_the_crosswalk_misses_still_resolves_through_the_fold(connection):
