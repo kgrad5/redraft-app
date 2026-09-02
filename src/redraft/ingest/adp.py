@@ -121,12 +121,6 @@ class YahooADP:
                 "times_drafted": None,
             }
 
-        # Dropped before the emptiness check, not after: a player two records reached on
-        # one tier belongs to neither (ADR-52), and `resolve` had already handed him to
-        # the first of them by the time the second arrived.
-        for withdrawn in resolver.withdrawn:
-            rows.pop(withdrawn, None)
-
         if not rows:
             raise EmptyAdpError(
                 f"{len(records)} Yahoo records yielded no ADP rows "
@@ -190,9 +184,6 @@ class FfcADP:
                 "low": record["low"],
                 "times_drafted": record["times_drafted"],
             }
-
-        for withdrawn in resolver.withdrawn:
-            rows.pop(withdrawn, None)
 
         if not rows:
             raise EmptyAdpError(

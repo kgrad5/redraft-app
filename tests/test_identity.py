@@ -631,6 +631,54 @@ def test_a_positive_identification_settles_a_player_an_earlier_tie_withdrew(
     assert index.withdrawn == frozenset()
 
 
+def test_a_tie_settled_later_reports_each_losing_record_once_and_truthfully(
+    connection, empty_exceptions
+):
+    """Why the report is rebuilt at the end rather than accumulated as it goes.
+
+    A tie reports both records as withdrawn. A crosswalk id arriving afterwards settles
+    the player, which makes both of those lines false: nothing was withdrawn in the end,
+    and rows *were* written for him. Accumulating eagerly also appended the first record
+    a second time when it was displaced, so `unresolved` read 3 for two losing records
+    and the ADR-42 tripwire issue #9 reads drifted from the report printed beside it.
+    """
+    index = resolver(connection, empty_exceptions)
+    walker = player_id_of(connection, "Kenneth Walker III")
+
+    index.resolve(None, "Kenneth Walker", "RB")  # normalized
+    index.resolve(None, "Kenneth Walker Jr.", "RB")  # normalized, ties
+    assert index.resolve("8135", "Whoever This Is", "RB") == walker  # crosswalk settles it
+
+    assert index.withdrawn == frozenset()
+    assert [record.name for record in index.unmatched] == [
+        "Kenneth Walker",
+        "Kenneth Walker Jr.",
+    ]
+    for record in index.unmatched:
+        assert record.detail == (
+            "displaced by 'Whoever This Is', which matched on the crosswalk tier"
+        )
+
+
+def test_a_record_losing_to_a_tie_is_not_told_the_player_was_placed(connection, empty_exceptions):
+    """There is no holder to name, so `already placed as X` would name a record that
+    did not get the player either — sending an operator to look up a row nothing wrote.
+    """
+    index = resolver(connection, empty_exceptions)
+    walker = player_id_of(connection, "Kenneth Walker III")
+
+    assert index.resolve(None, "Kenneth Walker III", "RB") == walker  # exact
+    assert index.resolve("dup", "Kenneth Walker III", "RB") is None  # exact, ties
+    assert index.resolve(None, "Kenneth Walker", "RB") is None  # normalized, outranked
+
+    assert index.withdrawn == frozenset({walker})
+    late = index.unmatched[-1]
+    assert late.name == "Kenneth Walker"
+    assert late.detail == (
+        "withdrawn: outranked on the exact tier, where more than one record matched"
+    )
+
+
 # --- the report ----------------------------------------------------------------------
 
 

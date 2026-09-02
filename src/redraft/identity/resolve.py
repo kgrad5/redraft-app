@@ -94,12 +94,24 @@ class DuplicateResolutionError(Exception):
     """
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class _Claim:
-    """A player this run has placed, and what to report if something later outranks it."""
+    """Every record that reached one player this run, and the best tier any of them did.
+
+    Mutable, and read at the end rather than written as it goes: what to report about a
+    losing record depends on who ends up with the player, and that is not known until the
+    last record has arrived. Appending eagerly says "already placed as X" about a record
+    that a later, better one then takes the player from, and says "withdrawn" about a
+    player a later crosswalk id goes on to settle.
+    """
 
     tier: int
-    record: Unmatched
+    # Records that reached the player on `tier`. Exactly one holds him; more than one is
+    # a tie no tier can settle, so nobody holds him (ADR-52).
+    holders: list[tuple[int, Unmatched]]
+    # Records that lost him, each flagged with whether it was holding him at the time.
+    # Being displaced and arriving too late read differently in the report.
+    lost: list[tuple[int, Unmatched, bool]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -260,8 +272,12 @@ class Resolver:
         self._exceptions = self._targets(load_exceptions(exceptions_path))
 
         self._claimed: dict[int, _Claim] = {}
-        self._withdrawn: set[int] = set()
-        self._unmatched: list[Unmatched] = []
+        # Records that matched no player at all. Final the moment they are made — nothing
+        # arriving later changes what matched nothing — so unlike a contested record they
+        # live here rather than inside a claim. The int is arrival order, which the report
+        # is rebuilt in.
+        self._unmatched: list[tuple[int, Unmatched]] = []
+        self._seen = 0
 
     def _targets(self, entries: tuple[ExceptionEntry, ...]) -> dict[str, int]:
         """This source's entries, with each target turned into a `player_id`.
@@ -321,7 +337,11 @@ class Resolver:
         """This record's internal `player_id`, or None if nothing places it.
 
         A None return is always accompanied by a record on `unmatched`, so an ingester
-        cannot drop a player without the report saying so.
+        cannot drop a player without the report saying so. The converse does not hold:
+        a `player_id` this returns can still be taken back by a later record, so
+        resolution is two-phase and a caller must sweep `withdrawn` after the loop and
+        before it writes (ADR-52). Nothing in the return type says so, which is the cost
+        of settling contention in one pass.
 
         When two records claim one player, **the tiers settle it, never arrival order**
         (ADR-52). Resolving in tier order within a record is not enough on its own: a flat
@@ -335,48 +355,39 @@ class Resolver:
         """
         player_id, tier, why = self._match(source_key, name, position)
         record = Unmatched(self.source, source_key, name, position, rank, why)
+        self._seen += 1
+        seq = self._seen
         if player_id is None:
-            self._unmatched.append(record)
+            self._unmatched.append((seq, record))
             return None
 
-        held = self._claimed.get(player_id)
-        if held is None:
-            self._claimed[player_id] = _Claim(tier, record)
+        claim = self._claimed.get(player_id)
+        if claim is None:
+            self._claimed[player_id] = _Claim(tier, [(seq, record)], [])
             return player_id
 
-        if tier < held.tier:
+        if tier < claim.tier:
             # A positive identification outranks whatever came before it, and settles a
             # player an earlier tie had withdrawn.
-            self._unmatched.append(
-                replace(
-                    held.record,
-                    detail=f"displaced by {name!r}, which matched on the {TIERS[tier]} tier",
-                )
-            )
-            self._withdrawn.discard(player_id)
-            self._claimed[player_id] = _Claim(tier, record)
+            claim.lost.extend((held_seq, held, True) for held_seq, held in claim.holders)
+            claim.tier = tier
+            claim.holders = [(seq, record)]
             return player_id
 
         if self.on_duplicate == "raise":
             raise DuplicateResolutionError(
-                f"{name!r} and {held.record.name!r} both resolved to player_id "
-                f"{player_id} on the {TIERS[held.tier]} tier; one of them is matching "
+                f"{name!r} and {claim.holders[0][1].name!r} both resolved to player_id "
+                f"{player_id} on the {TIERS[claim.tier]} tier; one of them is matching "
                 "on a name it does not own"
             )
 
-        if tier > held.tier:
-            self._unmatched.append(
-                replace(record, detail=f"already placed as {held.record.name!r}")
-            )
+        if tier > claim.tier:
+            claim.lost.append((seq, record, False))
             return None
 
         # Same tier. Reporting only the loser would leave the winner's rows written on a
         # coin toss, and the winner is exactly as likely to be the wrong player.
-        tie = f"withdrawn: more than one record matched this player on the {TIERS[tier]} tier"
-        if player_id not in self._withdrawn:
-            self._withdrawn.add(player_id)
-            self._unmatched.append(replace(held.record, detail=tie))
-        self._unmatched.append(replace(record, detail=tie))
+        claim.holders.append((seq, record))
         return None
 
     @property
@@ -384,12 +395,44 @@ class Resolver:
         """Players no record may keep, because more than one reached them on one tier.
 
         An ingester must drop whatever it wrote for these before it writes: `resolve`
-        returned the player to the first record, which was correct until the second
+        returned the player to the first of them, which was correct until the second
         arrived, and nothing can be un-returned after the fact.
         """
-        return frozenset(self._withdrawn)
+        return frozenset(
+            player_id for player_id, claim in self._claimed.items() if len(claim.holders) > 1
+        )
 
     @property
     def unmatched(self) -> tuple[Unmatched, ...]:
-        """What this run could not place, in the order it met them."""
-        return tuple(self._unmatched)
+        """What this run could not place, in the order it met them.
+
+        Built here rather than accumulated, because a contested record's detail is only
+        true once the contest is over.
+        """
+        records = list(self._unmatched)
+        for claim in self._claimed.values():
+            # One holder holds the player. More than one is a tie, and then nobody does,
+            # so every record that touched him — holders and losers alike — is reported.
+            winner = claim.holders[0][1] if len(claim.holders) == 1 else None
+            if winner is None:
+                tie = (
+                    "withdrawn: more than one record matched this player on the "
+                    f"{TIERS[claim.tier]} tier"
+                )
+                records.extend((seq, replace(held, detail=tie)) for seq, held in claim.holders)
+            for seq, record, was_holding in claim.lost:
+                if winner is None:
+                    detail = (
+                        f"withdrawn: outranked on the {TIERS[claim.tier]} tier, where more "
+                        "than one record matched"
+                    )
+                elif was_holding:
+                    detail = (
+                        f"displaced by {winner.name!r}, which matched on the "
+                        f"{TIERS[claim.tier]} tier"
+                    )
+                else:
+                    detail = f"already placed as {winner.name!r}"
+                records.append((seq, replace(record, detail=detail)))
+        records.sort(key=lambda pair: pair[0])
+        return tuple(record for _, record in records)
