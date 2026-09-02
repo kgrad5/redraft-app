@@ -1,6 +1,6 @@
 # ADR-46 — ADP rows resolve by source id first, then by exact (full_name, position)
 
-**Status:** Accepted · 2026-08-31 · issue #7
+**Status:** Superseded by ADR-49 · 2026-08-31 · issue #7
 
 **Context**
 `adp.player_id` is a NOT NULL foreign key to `players` (ADR-29), so every record must resolve to an

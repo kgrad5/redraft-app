@@ -66,6 +66,35 @@ def sleeper_client() -> httpx2.Client:
     return httpx2.Client(timeout=httpx2.Timeout(30.0))
 
 
+def player_identity(record: dict[str, Any]) -> tuple[str, str]:
+    """The `(full_name, position)` the name tiers of specs/draft-assistant.md §4.3 match on.
+
+    Read from the nested `player` object rather than assembled from the request filter.
+    Verified against the 2026-08-31 snapshot: all 3,114 records carry `player` with a
+    non-null `first_name`, `last_name` and `position`, and the position there is the
+    player's own — 70 FB and 1 CB come back despite `position[]` asking for four. Two of
+    those FB records carry real components and both resolve on their Sleeper id, so the
+    position never reaches a name tier today; one that did would be reported rather than
+    matched, which is correct, since `players` holds no fullbacks.
+
+    Absence raises rather than degrading to an unresolvable record. A shape change here
+    would otherwise report all 555 records as unmatched — technically true, useless to
+    read, and a failure this module's other boundary checks would name properly.
+    """
+    player = record.get("player")
+    if not isinstance(player, dict):
+        raise PayloadShapeError(
+            f"record {record.get('player_id', '?')!r} carries no `player` object; "
+            "the name tiers have nothing to match on"
+        )
+    missing = [field for field in ("first_name", "last_name", "position") if not player.get(field)]
+    if missing:
+        raise PayloadShapeError(
+            f"record {record.get('player_id', '?')!r} is missing player.{', player.'.join(missing)}"
+        )
+    return f"{player['first_name']} {player['last_name']}", player["position"]
+
+
 def component_stats(stats: dict[str, float]) -> dict[str, float]:
     """Return the component subset of one player's stats.
 

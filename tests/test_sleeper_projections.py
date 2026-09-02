@@ -1,10 +1,16 @@
-"""The Sleeper projection ingester (issue #6): components only, crosswalk only.
+"""The Sleeper projection ingester (issue #6): components only, and now four tiers.
 
-The fixture payload is a five-record miniature of the real one, shaped so every rule
-is observable: a QB and a WR that resolve, a player carrying real projections whose
-sleeper_id no roster row ever supplied, and two ADP shells — one resolvable, one not.
-Each carries the `pts_` and `adp_` keys the live response carries, so a regression that
-stops excluding them shows up as extra rows rather than as a silent change of meaning.
+The fixture payload is a six-record miniature of the real one, shaped so every rule is
+observable: a QB and a WR that resolve on their sleeper_id, a player carrying real
+projections whose sleeper_id no roster row ever supplied, one that only the name fold can
+place, and two ADP shells — one resolvable, one not. Each carries the `pts_` and `adp_`
+keys the live response carries, so a regression that stops excluding them shows up as
+extra rows rather than as a silent change of meaning.
+
+Resolution was `players.sleeper_id` alone until issue #8 (ADR-42, superseded by ADR-49);
+it is now `redraft.identity`, which is why every record carries the nested `player` object
+the name tiers read. The matching rules themselves are tested in tests/test_identity.py —
+what this module asserts is that this ingester goes through them.
 
 No live network anywhere: every fetch goes through httpx2.MockTransport.
 """
@@ -13,6 +19,7 @@ import httpx2
 import pytest
 import sqlalchemy as sa
 
+from redraft.identity.report import unmatched_report
 from redraft.ingest.projections import EmptyProjectionsError, SleeperProjections
 from redraft.providers.sleeper import (
     PayloadShapeError,
@@ -29,6 +36,7 @@ MAHOMES = {
     "player_id": "4046",
     "team": "KC",
     "company": "rotowire",
+    "player": {"first_name": "Patrick", "last_name": "Mahomes", "position": "QB"},
     "stats": {
         "pass_att": 560.0,
         "pass_cmp": 372.0,
@@ -53,6 +61,7 @@ ST_BROWN = {
     "player_id": "7547",
     "team": "DET",
     "company": "rotowire",
+    "player": {"first_name": "Amon-Ra", "last_name": "St. Brown", "position": "WR"},
     "stats": {
         "rec": 115.0,
         "rec_yd": 1263.0,
@@ -74,7 +83,18 @@ ST_BROWN = {
 UNRESOLVED = {
     "player_id": "3321",
     "team": None,
+    "player": {"first_name": "Tyreek", "last_name": "Hill", "position": "WR"},
     "stats": {"rec": 42.0, "rec_yd": 511.0, "gp": 12.0, "adp_ppr": 227.2},
+}
+
+# The case issue #8 exists for, and the only one inside the top 200: no roster row gave
+# nflverse his sleeper_id, so tier one misses him, and `players` spells him with a suffix
+# Sleeper omits. Only the fold of specs/draft-assistant.md §4.3 places him.
+SUFFIX_ONLY = {
+    "player_id": "77777",
+    "team": "LV",
+    "player": {"first_name": "Mike", "last_name": "Washington", "position": "RB"},
+    "stats": {"rush_yd": 458.0, "rush_td": 3.0, "rec": 16.0, "gp": 18.0, "adp_ppr": 158.9},
 }
 
 # An ADP shell: Sleeper returns one for every player in its pool so the adp_ fields
@@ -83,14 +103,20 @@ UNRESOLVED = {
 # neither can be mistaken for the other's case.
 SHELL_RESOLVABLE = {
     "player_id": "1339",
+    "player": {"first_name": "Zach", "last_name": "Ertz", "position": "TE"},
     "stats": {"gp": 0.0, "adp_ppr": 999.0, "adp_dynasty": 999.0},
 }
-SHELL_UNRESOLVABLE = {"player_id": "99999", "stats": {"gp": 0.0, "adp_ppr": 999.0}}
+SHELL_UNRESOLVABLE = {
+    "player_id": "99999",
+    "player": {"first_name": "Nobody", "last_name": "Atall", "position": "WR"},
+    "stats": {"gp": 0.0, "adp_ppr": 999.0},
+}
 
-PAYLOAD = [MAHOMES, ST_BROWN, UNRESOLVED, SHELL_RESOLVABLE, SHELL_UNRESOLVABLE]
+PAYLOAD = [MAHOMES, ST_BROWN, UNRESOLVED, SUFFIX_ONLY, SHELL_RESOLVABLE, SHELL_UNRESOLVABLE]
 
 MAHOMES_COMPONENTS = 9
 ST_BROWN_COMPONENTS = 8
+SUFFIX_ONLY_COMPONENTS = 4
 
 # Chase carries no sleeper_id, which is the state issue #5 leaves a player in when
 # no roster row supplies one. He must not become a crosswalk entry keyed by NULL.
@@ -99,6 +125,9 @@ FIXTURE_PLAYERS = [
     {"full_name": "Amon-Ra St. Brown", "team": "DET", "position": "WR", "sleeper_id": "7547"},
     {"full_name": "Zach Ertz", "team": None, "position": "TE", "sleeper_id": "1339"},
     {"full_name": "Ja'Marr Chase", "team": "CIN", "position": "WR", "sleeper_id": None},
+    # Held with the suffix Sleeper omits, and with no sleeper_id — exactly as the live
+    # crosswalk holds him.
+    {"full_name": "Mike Washington Jr.", "team": "LV", "position": "RB", "sleeper_id": None},
 ]
 
 SELECT_ROWS = sa.text(
@@ -162,7 +191,11 @@ def test_happy_path_writes_one_row_per_component(connection):
     result, _ = ingest(connection)
 
     rows = written(connection)
-    assert result.rows_written == len(rows) == MAHOMES_COMPONENTS + ST_BROWN_COMPONENTS
+    assert (
+        result.rows_written
+        == len(rows)
+        == MAHOMES_COMPONENTS + ST_BROWN_COMPONENTS + SUFFIX_ONLY_COMPONENTS
+    )
 
     assert rows[("4046", "pass_td")] == 30.0
     assert rows[("4046", "rush_att")] == 61.0
@@ -227,6 +260,79 @@ def test_unresolved_sleeper_id_writes_nothing_and_is_counted(connection):
 
     assert result.unresolved == 1
     assert not [sid for sid, _ in written(connection) if sid == UNRESOLVED["player_id"]]
+    # The count is derived from the records, so the tripwire issue #9 reads and the
+    # report an operator reads cannot disagree (ADR-49). Asserted at a non-zero value:
+    # both sides are 0 on a clean run, where this would hold whether or not it was true.
+    assert result.unresolved == len(result.unmatched) == 1
+    assert result.unmatched[0].name == "Tyreek Hill"
+
+
+def test_a_real_run_renders_its_own_unmatched_report(connection):
+    """The renderer over an `IngestResult`, not over records built by hand.
+
+    Nothing in `src/` calls `ingest()` yet — the daily job is issue #9 — so this is the
+    only place the two halves meet: an ingester puts what it could not place on the
+    seam, and the report turns those records into the text an operator actually reads.
+    Testing each side alone would leave the join unproven until #9 wires it up.
+    """
+    result, _ = ingest(connection)
+
+    assert unmatched_report(result.unmatched) == (
+        "unmatched players: 1 — sleeper 1\n   227.2  sleeper  WR  Tyreek Hill  [3321]"
+    )
+
+
+def test_a_name_the_crosswalk_misses_still_resolves_through_the_fold(connection):
+    """The record issue #8 exists for, through the ingester rather than the resolver.
+
+    Sleeper publishes `Mike Washington`; `players` holds `Mike Washington Jr.` with no
+    sleeper_id. Before ADR-49 he was one of 37 unwritten records and the only one inside
+    the top 200, which is the bar this issue is measured against.
+    """
+    result, _ = ingest(connection)
+
+    rows = written(connection)
+    # Keyed by sleeper_id in `written`, and his `players` row has none — so the rows
+    # land under a NULL key, which is itself the proof he resolved by name.
+    assert result.rows_written == MAHOMES_COMPONENTS + ST_BROWN_COMPONENTS + SUFFIX_ONLY_COMPONENTS
+    assert rows[(None, "rush_yd")] == 458.0
+    assert rows[(None, "rec")] == 16.0
+    assert [record.name for record in result.unmatched] == ["Tyreek Hill"]
+
+
+def test_two_records_folding_onto_one_player_write_nothing_for_him(connection):
+    """ADR-52 through the ingester: the rows have to actually not be written.
+
+    `resolve` hands the player to the first of the two, because the second has not
+    arrived yet, so the ingester keys its rows by player_id and drops the withdrawn
+    ones before the insert. Without that sweep the first record's stats would still
+    be written on a coin toss.
+    """
+    twin_a = {
+        "player_id": "77771",
+        "player": {"first_name": "Mike", "last_name": "Washington", "position": "RB"},
+        "stats": {"rush_yd": 100.0, "gp": 17.0},
+    }
+    # `Washington Sr.`, not `Washington Jr.`: the latter matches the `players` row
+    # exactly, which is a better tier and correctly displaces the fold rather than tying
+    # with it. Both of these reach him only by the fold, which is the tie.
+    twin_b = {
+        "player_id": "77772",
+        "player": {"first_name": "Mike", "last_name": "Washington Sr.", "position": "RB"},
+        "stats": {"rec_yd": 200.0, "gp": 17.0},
+    }
+    result, _ = ingest(connection, [MAHOMES, twin_a, twin_b])
+
+    rows = written(connection)
+    assert result.rows_written == MAHOMES_COMPONENTS
+    # Nothing for the contested player, from either record — and in particular not
+    # `rush_yd` from the one that happened to be listed first.
+    assert not [key for key in rows if key[0] is None]
+    assert [record.name for record in result.unmatched] == [
+        "Mike Washington",
+        "Mike Washington Sr.",
+    ]
+    assert result.unresolved == 2
 
 
 def test_adp_shell_writes_nothing_and_is_not_counted_unresolved(connection):
@@ -276,6 +382,9 @@ def test_yahoo_id_is_never_a_join_key(connection):
     poser = {
         "player_id": "not-a-sleeper-id",
         "yahoo_id": "30123",
+        # A name no `players` row holds, so the name tiers cannot place him either and
+        # the only thing left that could is the yahoo_id this test forbids.
+        "player": {"first_name": "Nobody", "last_name": "Atall", "position": "WR"},
         "stats": {"rush_att": 99.0, "rec_yd": 99.0},
     }
 

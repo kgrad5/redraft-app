@@ -17,6 +17,8 @@ dependencies = [
     "alembic",
     "psycopg[binary]",
     "httpx2>=2.12",
+    # The hand-maintained exception file of specs/draft-assistant.md §4.3 (ADR-50).
+    "pyyaml",
 ]
 
 [project.optional-dependencies]

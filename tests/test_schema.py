@@ -11,6 +11,10 @@ from alembic.migration import MigrationContext
 
 from redraft.db.models import Base
 
+# The revision immediately below the migration whose downgrade guard is under test, so
+# that guard keeps being exercised however many migrations land on top of it.
+DOWN_FROM_EVENT_TYPE = "333bdc42eb4b"
+
 # specs/draft-assistant.md §4.4. Named literally rather than derived from Base.metadata, so a table
 # dropped from the models fails a test instead of quietly shrinking the expectation.
 EXPECTED_TABLES = {
@@ -20,7 +24,9 @@ EXPECTED_TABLES = {
     "adp",
     "league_config",
     "draft_events",
-    "id_exceptions",
+    # `id_exceptions` was here until issue #8. ADR-50 made the checked-in
+    # data/id_exceptions.yaml the source of truth and dropped the table, so
+    # specs/draft-assistant.md §4.4's sketch no longer describes the schema.
 }
 
 
@@ -142,6 +148,14 @@ def test_downgrade_refuses_while_undo_rows_exist(migrated, alembic_config, engin
     reseating the pick it reverses, and the restored triggers would then put those rows
     beyond DELETE. The guard runs before any DDL, so a refusal changes nothing.
 
+    Targets the revision below the guarded migration rather than `-1`. `-1` meant "the
+    event_type migration" only while that was head; issue #8 added one on top, so the
+    relative target began exercising the *new* migration's downgrade instead. That was
+    caught here only because the new downgrade raises nothing and the test failed
+    outright. A migration whose downgrade happened to raise its own RuntimeError would
+    have kept this green while testing something else entirely — which is the failure
+    naming the revision prevents, and the reason not to rely on having been lucky.
+
     Cleans up after itself: leaving the row behind would break test_downgrade_then_upgrade.
     """
     with engine.begin() as conn:
@@ -154,11 +168,13 @@ def test_downgrade_refuses_while_undo_rows_exist(migrated, alembic_config, engin
         )
     try:
         with pytest.raises(RuntimeError, match="undo row"):
-            command.downgrade(alembic_config, "-1")
-        # The guard fired before any DDL, so the schema is untouched.
-        assert "event_type" in {
-            column["name"] for column in sa.inspect(engine).get_columns("draft_events")
-        }
+            command.downgrade(alembic_config, DOWN_FROM_EVENT_TYPE)
+        # The guard fired before any DDL, so the schema is untouched. Alembic runs the
+        # whole downgrade in one transaction, so the migrations stacked above this one
+        # rolled back with it — `id_exceptions` stays dropped.
+        inspector = sa.inspect(engine)
+        assert "event_type" in {column["name"] for column in inspector.get_columns("draft_events")}
+        assert "id_exceptions" not in inspector.get_table_names()
     finally:
         with engine.begin() as conn:
             conn.execute(sa.text("DELETE FROM draft_events WHERE draft_id = 'rollback-guard'"))

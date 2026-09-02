@@ -15,6 +15,7 @@ from typing import Literal, Protocol
 from sqlalchemy import Connection
 
 from redraft.http.client import Source
+from redraft.identity.report import Unmatched
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,13 +24,24 @@ class IngestResult:
 
     snapshot_id: int
     rows_written: int
-    # Source records that named a player this run could not place, and so wrote
+    # The source records that named a player this run could not place, and so wrote
     # nothing for. It is a provider's only channel for reporting what it declined to
-    # write, which specs/draft-assistant.md §4.3 makes it owe: a silently dropped
-    # player is a player missing from the board. A count is a tripwire rather than
-    # the unmatched-player report itself, which #8 owns. Defaulted, because a
-    # provider whose source and key space coincide can never leave one behind.
-    unresolved: int = 0
+    # write, which specs/draft-assistant.md §4.3 makes it owe: a silently dropped player
+    # is a player missing from the board. This carried a bare count until issue #8
+    # (ADR-49); the records replaced it rather than joining it, because two fields saying
+    # the same thing drift and the report is what an operator can act on. Defaulted,
+    # because a provider whose source and key space coincide can never leave one behind.
+    unmatched: tuple[Unmatched, ...] = ()
+
+    @property
+    def unresolved(self) -> int:
+        """The tripwire ADR-42 put on this seam, now derived rather than stored.
+
+        Kept because issue #9 reads it, and derived so it and the report can never
+        disagree — a count that says zero beside a report that names three is worse than
+        either alone.
+        """
+        return len(self.unmatched)
 
 
 class ProjectionProvider(Protocol):

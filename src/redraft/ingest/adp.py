@@ -7,26 +7,24 @@ specs/draft-assistant.md Appendix A entry 9: **Yahoo is the location** — the A
 actual Yahoo room — and **FFC is the dispersion shape**, which Yahoo publishes none of.
 So a Yahoo row carries `adp` and four NULLs, and an FFC row carries all five.
 
-Both resolve through `_player_index` below rather than through a crosswalk column,
-because neither source has a usable one on its own (ADR-46). Yahoo's numeric id covers
-143 of its 184 fantasy-position records — nflverse supplies no `yahoo_id` for a 2026
-rookie, so Ashton Jeanty at ADP 16.9 is among the missing — and FFC publishes no
-crosswalk id at all. An exact `(full_name, position)` match closes all but nine. Exact
-means exact: the suffix and punctuation normalization of specs/draft-assistant.md §4.3,
-the exception file and the unmatched-player report are issue #8's, and the helper here
-is what issue #8 replaces.
+Both resolve through `redraft.identity` (ADR-49), which replaced the exact-match helper
+this module carried for issue #7 — ADR-46 said in as many words that issue #8 would.
+Neither source has a usable crosswalk column on its own: Yahoo's numeric id covers 143 of
+its 184 fantasy-position records, nflverse supplying none for a 2026 rookie, so Ashton
+Jeanty at ADP 16.9 was among the missing, and FFC publishes no crosswalk id at all. The
+name tiers close the nine the exact match left, all of them the suffix and punctuation
+variants specs/draft-assistant.md §4.3 names, and take FFC to zero. Yahoo keeps one:
+Tyreek Hill, drafted at 129.2 and absent from `players` entirely, whom no tier can place
+and issue #43 is about.
 """
-
-from dataclasses import dataclass
 
 import httpx2
 from sqlalchemy import Connection, text
 
 from redraft.http.client import Source, fetch_json
+from redraft.identity.resolve import Resolver
 from redraft.providers import ffc, yahoo
 from redraft.providers.base import IngestResult
-
-SELECT_PLAYERS = text("SELECT player_id, full_name, position, yahoo_num_id FROM players")
 
 INSERT_ADP = text(
     "INSERT INTO adp (snapshot_id, player_id, source, adp, stdev, high, low, times_drafted) "
@@ -35,22 +33,6 @@ INSERT_ADP = text(
     # two source records resolving to one player — which should raise rather than let
     # one silently overwrite the other.
 )
-
-
-class DuplicateResolutionError(Exception):
-    """Two records from one source resolved to the same player.
-
-    ADR-46 anticipates this landing on `adp`'s primary key rather than silently
-    overwriting, and it would — but as an `IntegrityError` raised by an executemany
-    that names neither record, on a transaction whose rollback then takes the snapshot
-    with it (ADR-38). The payload that would say which two collided is gone at exactly
-    the moment it is wanted. Catching it before the insert costs one dict and turns the
-    whole-run failure into a message naming both names.
-
-    It is reachable because resolution has two tiers: one record can match on
-    `yahoo_num_id` while a second, sharing its name and position, falls through to the
-    name tier and lands on the same player. Neither source contains such a pair today.
-    """
 
 
 class EmptyAdpError(Exception):
@@ -66,52 +48,6 @@ class EmptyAdpError(Exception):
     it and the payload that would say which of those fired is gone. Diagnosing one
     means re-fetching.
     """
-
-
-@dataclass(frozen=True, slots=True)
-class _PlayerIndex:
-    """The two lookups every ADP row resolves through, in priority order."""
-
-    by_yahoo_id: dict[int, int]
-    by_name: dict[tuple[str, str], int]
-
-    def resolve(self, source_id: int | None, full_name: str, position: str) -> int | None:
-        """This record's internal player_id, or None if nothing places it.
-
-        The id is tried first where the source has one, so a name that happens to
-        collide can never override a positive identification.
-        """
-        if source_id is not None:
-            player_id = self.by_yahoo_id.get(source_id)
-            # Explicitly against None: a surrogate key is an integer, and `or` would
-            # fall through on a legitimate zero.
-            if player_id is not None:
-                return player_id
-        return self.by_name.get((full_name, position))
-
-
-def _player_index(connection: Connection) -> _PlayerIndex:
-    """Build both lookups in one pass over `players`.
-
-    A `(full_name, position)` pair naming more than one player is dropped rather than
-    resolved arbitrarily. It maps to exactly one across the whole 1,020-player universe
-    today, but "pick whichever row came back last" is the kind of silent wrongness that
-    specs/draft-assistant.md §4.3 exists to prevent; an ambiguous name is reported as
-    unresolved and left to issue #8.
-    """
-    by_yahoo_id: dict[int, int] = {}
-    by_name: dict[tuple[str, str], int] = {}
-    ambiguous: set[tuple[str, str]] = set()
-    for player_id, full_name, position, yahoo_num_id in connection.execute(SELECT_PLAYERS):
-        if yahoo_num_id is not None:
-            by_yahoo_id[yahoo_num_id] = player_id
-        key = (full_name, position)
-        if key in by_name:
-            ambiguous.add(key)
-        by_name[key] = player_id
-    for key in ambiguous:
-        del by_name[key]
-    return _PlayerIndex(by_yahoo_id, by_name)
 
 
 class YahooADP:
@@ -139,11 +75,15 @@ class YahooADP:
             params=yahoo.players_params(),
         )
         records = yahoo.player_records(payload)
-        index = _player_index(connection)
+        # "raise" rather than "report": `adp`'s primary key would catch a collision
+        # anyway, but as an IntegrityError naming neither record on a transaction whose
+        # rollback takes the snapshot with it (ADR-46).
+        resolver = Resolver(connection, self.source, on_duplicate="raise")
 
-        rows: list[dict[str, object]] = []
-        claimed: dict[int, str] = {}
-        unresolved = 0
+        # Keyed by player_id, not appended: a record that outranks an earlier one takes
+        # the player (ADR-51), and writing it here discards the row the displaced record
+        # left behind. A list would keep both and violate `adp`'s primary key.
+        rows: dict[int, dict[str, object]] = {}
         for record in records:
             # `primary_position` rather than `display_position`: the two agree on every
             # record carrying a numeric ADP, but display_position is comma-joined for a
@@ -163,37 +103,31 @@ class YahooADP:
             if adp is None:
                 continue
             name = record["name"]["full"]
-            player_id = index.resolve(int(record["player_id"]), name, position)
+            # The bare numeric id as text (specs/draft-assistant.md §2.1), never the
+            # 470.p.{id} form. `yahoo_num_id` is an Integer column and this arrives as a
+            # string, so the resolver compares both as text.
+            player_id = resolver.resolve(record["player_id"], name, position, rank=adp)
             if player_id is None:
-                unresolved += 1
                 continue
-            if player_id in claimed:
-                raise DuplicateResolutionError(
-                    f"{name!r} and {claimed[player_id]!r} both resolved to player_id "
-                    f"{player_id}; one of them is matching on a name it does not own"
-                )
-            claimed[player_id] = name
-            rows.append(
-                {
-                    "snapshot_id": snapshot_id,
-                    "player_id": player_id,
-                    "source": self.source,
-                    "adp": adp,
-                    # Yahoo publishes no dispersion. FFC exists in this issue for it.
-                    "stdev": None,
-                    "high": None,
-                    "low": None,
-                    "times_drafted": None,
-                }
-            )
+            rows[player_id] = {
+                "snapshot_id": snapshot_id,
+                "player_id": player_id,
+                "source": self.source,
+                "adp": adp,
+                # Yahoo publishes no dispersion. FFC exists in this issue for it.
+                "stdev": None,
+                "high": None,
+                "low": None,
+                "times_drafted": None,
+            }
 
         if not rows:
             raise EmptyAdpError(
                 f"{len(records)} Yahoo records yielded no ADP rows "
-                f"({unresolved} named a player nothing could place)"
+                f"({len(resolver.unmatched)} named a player nothing could place)"
             )
-        connection.execute(INSERT_ADP, rows)
-        return IngestResult(snapshot_id, len(rows), unresolved)
+        connection.execute(INSERT_ADP, list(rows.values()))
+        return IngestResult(snapshot_id, len(rows), resolver.unmatched)
 
 
 class FfcADP:
@@ -221,46 +155,40 @@ class FfcADP:
             params=ffc.adp_params(self.season),
         )
         records = ffc.player_records(payload)
-        index = _player_index(connection)
+        resolver = Resolver(connection, self.source, on_duplicate="raise")
 
-        rows: list[dict[str, object]] = []
-        claimed: dict[int, str] = {}
-        unresolved = 0
+        # Keyed by player_id, not appended: a record that outranks an earlier one takes
+        # the player (ADR-51), and writing it here discards the row the displaced record
+        # left behind. A list would keep both and violate `adp`'s primary key.
+        rows: dict[int, dict[str, object]] = {}
         for record in records:
             position = record["position"]
             if position not in ffc.FANTASY_POSITIONS:
                 continue
-            # FFC publishes no crosswalk id, so there is no id tier to try first.
-            # Team is not in the key: FFC writes LAR where nflverse writes LA, which
-            # would drop Puka Nacua at ADP 2.9 (ADR-46).
-            player_id = index.resolve(None, record["name"], position)
-            if player_id is None:
-                unresolved += 1
-                continue
-            if player_id in claimed:
-                raise DuplicateResolutionError(
-                    f"{record['name']!r} and {claimed[player_id]!r} both resolved to "
-                    f"player_id {player_id}; one of them is matching on a name it does "
-                    "not own"
-                )
-            claimed[player_id] = record["name"]
-            rows.append(
-                {
-                    "snapshot_id": snapshot_id,
-                    "player_id": player_id,
-                    "source": self.source,
-                    "adp": record["adp"],
-                    "stdev": record["stdev"],
-                    "high": record["high"],
-                    "low": record["low"],
-                    "times_drafted": record["times_drafted"],
-                }
+            # FFC publishes no crosswalk id, so it has no id tier — the name it prints
+            # is its key, which is also what an exception entry is written against
+            # (ADR-50). Team is not in the key: FFC writes LAR where nflverse writes LA,
+            # which would drop Puka Nacua at ADP 2.9 (ADR-46).
+            player_id = resolver.resolve(
+                record["name"], record["name"], position, rank=record["adp"]
             )
+            if player_id is None:
+                continue
+            rows[player_id] = {
+                "snapshot_id": snapshot_id,
+                "player_id": player_id,
+                "source": self.source,
+                "adp": record["adp"],
+                "stdev": record["stdev"],
+                "high": record["high"],
+                "low": record["low"],
+                "times_drafted": record["times_drafted"],
+            }
 
         if not rows:
             raise EmptyAdpError(
                 f"{len(records)} FFC records yielded no ADP rows "
-                f"({unresolved} named a player nothing could place)"
+                f"({len(resolver.unmatched)} named a player nothing could place)"
             )
-        connection.execute(INSERT_ADP, rows)
-        return IngestResult(snapshot_id, len(rows), unresolved)
+        connection.execute(INSERT_ADP, list(rows.values()))
+        return IngestResult(snapshot_id, len(rows), resolver.unmatched)
