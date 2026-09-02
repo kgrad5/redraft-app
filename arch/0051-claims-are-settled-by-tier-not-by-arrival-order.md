@@ -27,8 +27,10 @@ A claim records the tier that made it. A record matching on a strictly better ti
 the player, and the record it displaces is reported as unmatched with the tier that
 displaced it. On an equal or worse tier the later record loses, which is
 `DuplicateResolutionError` for `adp` and a reported record for `projections` — the two
-behaviours ADR-49 already assigns. Both ingesters key their accumulated rows by
-`player_id`, so writing a displacing record discards the rows the displaced one left.
+behaviours ADR-49 already assigns. ADR-52 narrows the equal case: two records tying on one
+tier are settled by neither, so `projections` reports both and withdraws the player, while
+`adp` still raises. Both ingesters key their accumulated rows by `player_id`, so writing a
+displacing record discards the rows the displaced one left.
 
 **Consequences**
 - ADR-50's "the file is consulted before the automatic tiers" now holds where it is
@@ -42,7 +44,9 @@ behaviours ADR-49 already assigns. Both ingesters key their accumulated rows by
 - The ingesters accumulate into a dict keyed by `player_id` rather than a list. For
   `projections` this also removes a silent merge — its primary key is
   (snapshot_id, player_id, stat_key), so two records with disjoint stat keys would
-  otherwise have been written as one player rather than colliding.
+  otherwise have been written as one player rather than colliding. ADR-52 puts a second
+  mechanism on top of that key: `projections` also drops the players it withdrew before
+  it writes.
 - A displaced record is reported, so the count on the seam still equals the report.
 
 **Alternatives rejected**
