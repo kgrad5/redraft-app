@@ -29,6 +29,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from redraft.http.client import SOURCES
 from redraft.jobs import daily
 from redraft.jobs.daily import run
 from redraft.providers.nflverse import PLAYERS_URL, SCHEDULE_URL, roster_url
@@ -515,10 +516,23 @@ def test_a_virgin_pool_costs_every_json_source_its_run(engine, capsys):
     assert player_rows(engine) == []
 
     # The pairing ADR-53 records: the report is never the run's whole verdict, so a run
-    # that placed nobody can never be read from the report alone.
-    printed = capsys.readouterr().out
+    # that placed nobody can never be read from the report alone. The ORDER is the claim —
+    # four outcome lines above, report below — so it is asserted rather than left to the
+    # two strings merely both appearing.
+    captured = capsys.readouterr()
+    printed = captured.out
     assert printed.count("FAILED") == 4
+    lines = printed.splitlines()
+    last_failed = max(i for i, line in enumerate(lines) if "FAILED" in line)
+    report_at = next(i for i, line in enumerate(lines) if "unmatched players:" in line)
+    assert last_failed < report_at
     assert "unmatched players: none" in printed
+
+    # ADR-53's whole mitigation for catching `Exception` is that each failure prints its
+    # traceback to stderr. Untested, that is a claim rather than a behaviour.
+    assert captured.err.count("Traceback (most recent call last)") == 4
+    assert "redraft.ingest.projections.EmptyProjectionsError" in captured.err
+    assert "redraft.ingest.adp.EmptyAdpError" in captured.err
 
 
 def test_the_run_emits_one_unmatched_report_across_every_source(engine, capsys):
@@ -573,8 +587,19 @@ def test_main_exits_zero_on_a_clean_run_and_one_when_any_source_failed(engine, m
 
 
 def test_refresh_returns_one_entry_per_source_with_its_new_snapshot_id(engine):
-    """The second half of issue #9's acceptance check."""
+    """The second half of issue #9's acceptance check.
+
+    A run happens *before* the refresh, so every source already holds an older snapshot
+    when the endpoint is called. Against an empty table "the newest snapshot per source"
+    is trivially the only one, and the check would pass on a query that ignored recency
+    entirely; with a prior run it can only pass if `DISTINCT ON ... ORDER BY snapshot_id
+    DESC` really returns the later id.
+    """
     clients, _ = mock_clients()
+    earlier = run(engine, season=SEASON, game_key=GAME_KEY, clients=clients)
+    earlier_ids = {one.snapshot_id for one in earlier if one.snapshot_id is not None}
+    assert len(earlier_ids) == 3
+
     with api(engine, clients) as client:
         response = client.post("/refresh")
 
@@ -591,6 +616,10 @@ def test_refresh_returns_one_entry_per_source_with_its_new_snapshot_id(engine):
     returned = {
         entry["source"]: entry["snapshot_id"] for entry in body if entry["snapshot_id"] is not None
     }
+    # Every returned id is newer than the same source's earlier one, so "newest" is doing
+    # work here rather than being satisfied by the only row present.
+    assert earlier_ids.isdisjoint(returned.values())
+    assert all(snapshot_id > max(earlier_ids) for snapshot_id in returned.values())
     # That this query can see them at all is what proves each source's transaction
     # committed before the response was built.
     assert newest_snapshot_ids(engine) == returned
@@ -611,16 +640,95 @@ def test_refresh_reports_a_failed_source_as_data_rather_than_a_500(engine):
     assert entries["ffc"]["snapshot_id"] is not None
 
 
-def test_refresh_uses_the_configured_season_and_game_key(engine):
-    """The one path that reads `settings` through no injection seam."""
+def test_refresh_uses_the_configured_season_and_game_key(engine, monkeypatch):
+    """The one path that reads `settings` through no injection seam.
+
+    Both values are moved off their defaults first. Asserting against `settings.season`
+    itself would pass just as well against a hardcoded 2026, which is exactly the bug this
+    test exists to catch — the endpoint reads a module global that no dependency override
+    can reach, so the only way to prove it is read is to change it.
+    """
+    from redraft.api import refresh
+
+    monkeypatch.setattr(refresh.settings, "season", 2099)
+    monkeypatch.setattr(refresh.settings, "yahoo_game_key", 999)
+
     clients, urls = mock_clients()
     with api(engine, clients) as client:
         assert client.post("/refresh").status_code == 200
 
     # Not endswith: fetch_json appends season_type and four position[] parameters.
-    assert urls["sleeper"][0].startswith(projections_url(SEASON))
-    assert f"year={SEASON}" in urls["ffc"][0]
-    assert f"/league/{GAME_KEY}.l.public/" in urls["yahoo"][0]
+    assert urls["sleeper"][0].startswith(projections_url(2099))
+    assert "year=2099" in urls["ffc"][0]
+    assert "/league/999.l.public/" in urls["yahoo"][0]
+
+
+def test_live_clients_yields_one_per_source_and_closes_them_all():
+    """The production client bundle, which every other test replaces and so never runs.
+
+    A missing key here is a `KeyError` raised out of `run()` from the `providers` tuple,
+    which is built outside any `try` — after nflverse has already committed.
+    """
+    with daily.live_clients() as clients:
+        assert set(clients) == set(SOURCES)
+        opened = list(clients.values())
+        assert all(isinstance(client, httpx2.Client) for client in opened)
+        assert not any(client.is_closed for client in opened)
+        # ADR-40: GitHub 302s every release asset to a storage host, and only this client
+        # may follow it.
+        assert clients["nflverse"].follow_redirects is True
+        assert clients["yahoo"].follow_redirects is False
+
+    assert all(client.is_closed for client in opened)
+
+
+def test_live_clients_closes_what_it_opened_when_a_later_factory_raises(monkeypatch):
+    """A dict literal would bind `clients` only after all four returned, stranding three."""
+    opened: list[httpx2.Client] = []
+    real = daily.sleeper_client
+
+    def recording_sleeper_client():
+        client = real()
+        opened.append(client)
+        return client
+
+    def boom():
+        raise OSError("no route to host while building a client")
+
+    monkeypatch.setattr(daily, "sleeper_client", recording_sleeper_client)
+    monkeypatch.setattr(daily, "ffc_client", boom)
+
+    with pytest.raises(OSError, match="no route to host"), daily.live_clients():
+        pass  # pragma: no cover — the raise happens before the body runs
+
+    assert opened and all(client.is_closed for client in opened)
+
+
+def test_a_poisoned_rank_does_not_cost_the_run_its_committed_snapshot_ids(engine, capsys):
+    """ADR-53 promises a `SourceRun` per source whatever happened, at 200 either way.
+
+    `rank` reaches `Unmatched` untyped — FFC checks its `adp` is present but not that it
+    is a number, and only the write path coerces, which an unmatched record never reaches.
+    A string there raises inside `unmatched_report`, and `run()` prints that report after
+    every source has already committed. Losing the printout is tolerable; losing three
+    committed snapshot ids with it, minutes before a draft, is not.
+    """
+    poisoned = [*FFC_PLACEABLE, ffc_record("Nobody At All", "WR", "120.0", 20.0, 80, 160, 300)]
+    clients, _ = mock_clients(ffc=ffc_payload(poisoned))
+
+    runs = run(engine, season=SEASON, game_key=GAME_KEY, clients=clients)
+
+    # The run still reports every source, and every id it names is really in the table.
+    assert [one.source for one in runs] == ["nflverse", "sleeper", "yahoo", "ffc"]
+    assert not any(one.failed for one in runs)
+    written = {row.snapshot_id for row in snapshot_rows(engine)}
+    assert {one.snapshot_id for one in runs if one.snapshot_id is not None} == written
+    assert len(written) == 3
+
+    # Printed, not swallowed: the traceback is on stderr and the failure is named on stdout.
+    captured = capsys.readouterr()
+    assert "REPORT FAILED" in captured.out
+    assert "Traceback (most recent call last)" in captured.err
 
 
 def test_the_refresh_handler_is_not_async():

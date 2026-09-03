@@ -88,13 +88,15 @@ def live_clients() -> Iterator[Clients]:
     four factories already set `httpx2.Timeout(30.0)` and each records that its path
     belongs to this job and never to the pick clock of specs/draft-assistant.md §2.2.
     """
-    clients: Clients = {
-        "nflverse": nflverse_client(),
-        "sleeper": sleeper_client(),
-        "yahoo": yahoo_client(),
-        "ffc": ffc_client(),
-    }
+    # Built inside the `try` and one at a time, not as a dict literal: a literal binds
+    # `clients` only once all four factories have returned, so a raise from the fourth
+    # would strand the three already open — the leak this context manager exists to close.
+    clients: Clients = {}
     try:
+        clients["nflverse"] = nflverse_client()
+        clients["sleeper"] = sleeper_client()
+        clients["yahoo"] = yahoo_client()
+        clients["ffc"] = ffc_client()
         yield clients
     finally:
         for client in clients.values():
@@ -200,7 +202,20 @@ def run(engine: Engine, *, season: int, game_key: int, clients: Clients) -> list
     # nothing — its `Resolver` is a local inside `ingest()` and died with the exception —
     # so the four outcome lines above are printed first and the report is never the run's
     # whole verdict.
-    print(unmatched_report(unmatched), flush=True)
+    #
+    # Guarded because it runs after every source has already committed, and ADR-53 promises
+    # a `SourceRun` per source "whatever happened", at 200 either way. `rank` reaches
+    # `Unmatched` untyped: FFC checks its `adp` is present but not that it is a number, and
+    # Sleeper passes `adp_ppr` straight through, while only the *write* path coerces — which
+    # an unmatched record by definition never reaches. A string there raises in the report's
+    # sort or its `:6.1f` format, and unguarded that would take four committed snapshot ids
+    # down with the printout, minutes before a draft. The failure is printed, not swallowed;
+    # what it must not do is destroy the run's result.
+    try:
+        print(unmatched_report(unmatched), flush=True)
+    except Exception:  # noqa: BLE001 — same reasoning as the per-source catches, ADR-53
+        traceback.print_exc()
+        print("  unmatched players: REPORT FAILED — traceback above", flush=True)
     return runs
 
 
