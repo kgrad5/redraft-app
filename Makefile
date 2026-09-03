@@ -1,4 +1,4 @@
-.PHONY: up dev test fmt pyversion
+.PHONY: up dev snapshot test fmt pyversion
 
 VENV  := .venv
 PY    := $(VENV)/bin/python
@@ -35,6 +35,24 @@ up: .env
 dev: pyversion .env
 	set -a; . ./.env; set +a; $(PY) -m uvicorn redraft.main:app --reload \
 	  --host "$${APP_HOST:-127.0.0.1}" --port "$${APP_PORT:-8000}"
+
+# One run of every ingester: a dated snapshot per JSON source, and `players` upserted
+# in place. `up` for the same reason `test` takes it — this target's whole purpose is
+# to write rows, so without Postgres every source fails on connection, a red that reads
+# as four dead feeds when it is one stopped container.
+#
+# The schedule is not in this repo, on purpose: nothing in the process schedules
+# anything and no table records that a run happened. Install it once with `crontab -e`.
+# cron's PATH is /usr/bin:/bin, which has no docker, and cron mails a job's output only
+# where an MTA is configured — which is not the default here — so the log file below is
+# the review surface for the unmatched-player report, not mail:
+#
+#   PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin
+#   30 4 * * * cd /path/to/redraft-app && make snapshot >> /path/to/redraft-app/snapshot.log 2>&1
+#
+# The job exits 1 when any source failed; make reports a failed recipe as its own exit 2.
+snapshot: pyversion up
+	set -a; . ./.env; set +a; $(PY) -m redraft.jobs.daily
 
 # `up` rather than a bare .env: most of the suite needs Postgres, and without it
 # 19 tests error on connection — a red that reads as a regression but is only a
